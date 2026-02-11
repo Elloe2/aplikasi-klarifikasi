@@ -1,0 +1,21 @@
+# ICON DESCRIPTION: User Icon for Klarifikasi.id
+
+SPECIFICATIONS:
+- Size: 24x24px (for navigation)
+- Style: Modern, minimalist
+- Theme: Dark theme compatible
+- Color: White with subtle gradient
+
+DESIGN CONCEPT:
+👤 User/profile icon representing account and profile
+- Simple silhouette of a person
+- Circle with person outline inside
+- Clean, recognizable user symbol
+- Matches app's user management theme
+
+TECHNICAL DETAILS:
+- Format: PNG with transparent background
+- Colors: Primary white, secondary light gray
+- Usage: Navigation bar, profile sections
+
+ALTERNATIVE: Use Flutter's built-in Icons.person

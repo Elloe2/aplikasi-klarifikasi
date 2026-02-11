@@ -1,0 +1,20 @@
+# ICON DESCRIPTION: Settings Icon for Klarifikasi.id
+
+SPECIFICATIONS:
+- Size: 24x24px (for navigation)
+- Style: Modern, minimalist
+- Theme: Dark theme compatible
+- Color: White with subtle gradient
+
+DESIGN CONCEPT:
+⚙️ Gear/cog icon representing settings and configuration
+- Classic gear with teeth around the edge
+- Simple, recognizable settings symbol
+- Matches app's technical/fact-checking theme
+
+TECHNICAL DETAILS:
+- Format: PNG with transparent background
+- Colors: Primary white, secondary light gray
+- Usage: Navigation bar, settings page
+
+ALTERNATIVE: Use Flutter's built-in Icons.settings

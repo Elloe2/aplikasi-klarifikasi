@@ -1,0 +1,21 @@
+# ICON DESCRIPTION: History Icon for Klarifikasi.id
+
+SPECIFICATIONS:
+- Size: 24x24px (for navigation)
+- Style: Modern, minimalist
+- Theme: Dark theme compatible
+- Color: White with subtle gradient
+
+DESIGN CONCEPT:
+📚 Clock or history icon representing time/search history
+- Circular clock face with hands
+- OR document/archive icon with time indicator
+- Simple, recognizable history symbol
+- Matches app's fact-checking theme
+
+TECHNICAL DETAILS:
+- Format: PNG with transparent background
+- Colors: Primary white, secondary light gray
+- Usage: Navigation bar, history page
+
+ALTERNATIVE: Use Flutter's built-in Icons.history

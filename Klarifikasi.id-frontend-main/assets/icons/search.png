@@ -1,0 +1,20 @@
+# ICON DESCRIPTION: Search Icon for Klarifikasi.id
+
+SPECIFICATIONS:
+- Size: 24x24px (for navigation)
+- Style: Modern, minimalist
+- Theme: Dark theme compatible
+- Color: White with subtle gradient
+
+DESIGN CONCEPT:
+🔍 Magnifying glass icon with clean lines
+- Circle with handle extending to the right
+- Simple, recognizable search symbol
+- Matches app's dark theme aesthetic
+
+TECHNICAL DETAILS:
+- Format: PNG with transparent background
+- Colors: Primary white, secondary light gray
+- Usage: Navigation bar, search buttons
+
+ALTERNATIVE: Use Flutter's built-in Icons.search
