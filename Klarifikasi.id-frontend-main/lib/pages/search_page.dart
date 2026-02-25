@@ -17,6 +17,8 @@ import '../models/search_result.dart';
 import '../models/gemini_analysis.dart';
 import '../models/saved_analysis.dart';
 import '../providers/saved_analysis_provider.dart';
+import '../providers/gemini_api_provider.dart';
+import '../providers/search_api_provider.dart';
 import '../services/search_api.dart';
 import '../theme/app_theme.dart';
 import '../widgets/error_banner.dart';
@@ -293,6 +295,23 @@ class _SearchPageState extends State<SearchPage> {
       return;
     }
 
+    // === AMBIL API KEYS DARI PROVIDERS ===
+    final geminiProvider = context.read<GeminiApiProvider>();
+    final cseProvider = context.read<SearchApiProvider>();
+    final geminiApiKey = geminiProvider.apiKey;
+    final cseApiKey = cseProvider.apiKey;
+    final cseCx = cseProvider.cx;
+
+    // Cek apakah API key sudah expired sebelum mencari
+    if (geminiProvider.isKeyExpired) {
+      _showApiKeyExpiredDialog();
+      return;
+    }
+    if (cseProvider.isKeyExpired) {
+      _showCseApiKeyExpiredDialog();
+      return;
+    }
+
     // === MULAI PROSES PENCARIAN ===
     // Update state untuk menunjukkan loading state dan reset error
     setState(() {
@@ -306,8 +325,38 @@ class _SearchPageState extends State<SearchPage> {
 
     // === EKSEKUSI PENCARIAN ===
     try {
-      // Panggil API dengan query dan limit hasil (default 20)
-      final response = await widget.api.search(query, limit: 20);
+      // Panggil API dengan semua API keys dan callbacks
+      final response = await widget.api.search(
+        query,
+        limit: 20,
+        geminiApiKey: geminiApiKey,
+        cseApiKey: cseApiKey,
+        cseCx: cseCx,
+        onGeminiUsage: () {
+          geminiProvider.recordUsage();
+        },
+        onGeminiError: (statusCode, errorMessage) {
+          geminiProvider.recordError(statusCode, errorMessage);
+          if (mounted &&
+              (statusCode == 400 || statusCode == 403 || statusCode == 429)) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _showApiKeyExpiredDialog();
+            });
+          }
+        },
+        onCseUsage: () {
+          cseProvider.recordUsage();
+        },
+        onCseError: (statusCode, errorMessage) {
+          cseProvider.recordError(statusCode, errorMessage);
+          if (mounted &&
+              (statusCode == 400 || statusCode == 403 || statusCode == 429)) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _showCseApiKeyExpiredDialog();
+            });
+          }
+        },
+      );
 
       // Safety check lagi setelah await
       if (mounted) {
@@ -333,6 +382,188 @@ class _SearchPageState extends State<SearchPage> {
         });
       }
     }
+  }
+
+  /// === POP-UP DIALOG CSE API KEY EXPIRED ===
+  /// Menampilkan dialog notifikasi bahwa CSE API key bermasalah.
+  void _showCseApiKeyExpiredDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: Colors.orangeAccent.withValues(alpha: 0.3)),
+        ),
+        icon: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.orangeAccent.withValues(alpha: 0.1),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.search_off,
+            color: Colors.orangeAccent,
+            size: 36,
+          ),
+        ),
+        title: const Text(
+          'Search API Key Bermasalah',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'API key Google Custom Search yang Anda gunakan sudah tidak bisa dipakai (quota habis atau tidak valid).\n\nSilakan perbarui API key di menu Pengaturan untuk melanjutkan pencarian.',
+              style: TextStyle(color: Colors.white70, fontSize: 14),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.primarySeedColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppTheme.primarySeedColor.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.lightbulb_outline,
+                    color: AppTheme.primarySeedColor,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Dapatkan API key di\nconsole.cloud.google.com',
+                      style: TextStyle(color: Colors.white60, fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Nanti', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primarySeedColor,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              widget.onSettingsTap?.call();
+            },
+            icon: const Icon(Icons.settings, size: 18),
+            label: const Text('Buka Pengaturan'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// === POP-UP DIALOG API KEY EXPIRED ===
+  /// Menampilkan dialog notifikasi bahwa API key bermasalah
+  /// dan memberikan opsi untuk mengganti key dari Settings.
+  void _showApiKeyExpiredDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: Colors.redAccent.withValues(alpha: 0.3)),
+        ),
+        icon: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.redAccent.withValues(alpha: 0.1),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.vpn_key_off,
+            color: Colors.redAccent,
+            size: 36,
+          ),
+        ),
+        title: const Text(
+          'API Key Bermasalah',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'API key Gemini AI yang Anda gunakan sudah tidak bisa dipakai (quota habis atau tidak valid).\n\nSilakan perbarui API key di menu Pengaturan untuk melanjutkan analisis.',
+              style: TextStyle(color: Colors.white70, fontSize: 14),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.primarySeedColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppTheme.primarySeedColor.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.lightbulb_outline,
+                    color: AppTheme.primarySeedColor,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Dapatkan API key gratis di\naistudio.google.com',
+                      style: TextStyle(color: Colors.white60, fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Nanti', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primarySeedColor,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              // Navigate ke Settings tab
+              widget.onSettingsTap?.call();
+            },
+            icon: const Icon(Icons.settings, size: 18),
+            label: const Text('Buka Pengaturan'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _openResult(String url) async {
@@ -413,16 +644,6 @@ class _SearchPageState extends State<SearchPage> {
           ),
         ),
         centerTitle: false,
-        actions: [
-          // Settings button
-          if (widget.onSettingsTap != null)
-            IconButton(
-              icon: const Icon(Icons.settings_outlined),
-              onPressed: widget.onSettingsTap,
-              tooltip: 'Pengaturan',
-              color: Colors.white,
-            ),
-        ],
       ),
 
       // === MAIN BODY ===

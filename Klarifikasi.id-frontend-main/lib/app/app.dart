@@ -8,6 +8,8 @@ import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../providers/saved_analysis_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/gemini_api_provider.dart';
+import '../providers/search_api_provider.dart';
 import '../app/home_shell.dart';
 import '../pages/auth/login_page.dart';
 
@@ -24,6 +26,8 @@ class MainApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => SavedAnalysisProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => GeminiApiProvider()),
+        ChangeNotifierProvider(create: (_) => SearchApiProvider()),
       ],
       child: Consumer<AuthProvider>(
         builder: (context, auth, _) {

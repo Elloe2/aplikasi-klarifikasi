@@ -4,35 +4,73 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
-import '../config.dart';
 import '../models/search_result.dart';
 import 'gemini_service.dart';
 
 /// Kelas helper untuk melakukan pencarian fakta secara langsung (client-side).
 /// Mengintegrasikan Google Custom Search Engine dan Gemini AI
 /// tanpa memerlukan backend server.
+///
+/// Sekarang menerima API key dari provider untuk kedua service:
+/// - [geminiApiKey] untuk Gemini AI
+/// - [cseApiKey] dan [cseCx] untuk Google Custom Search Engine
 class SearchApi {
   const SearchApi();
 
-  Future<Map<String, dynamic>> search(String query, {int limit = 10}) async {
-    final geminiService = GeminiService();
+  /// Melakukan pencarian dan analisis.
+  /// [geminiApiKey] - API key untuk Gemini (dari GeminiApiProvider)
+  /// [cseApiKey] - API key untuk Google CSE (dari SearchApiProvider)
+  /// [cseCx] - Search Engine ID untuk Google CSE (dari SearchApiProvider)
+  /// [onGeminiUsage] - Callback ketika Gemini API berhasil digunakan
+  /// [onGeminiError] - Callback ketika Gemini API error
+  /// [onCseUsage] - Callback ketika CSE API berhasil digunakan
+  /// [onCseError] - Callback ketika CSE API error
+  Future<Map<String, dynamic>> search(
+    String query, {
+    int limit = 10,
+    required String geminiApiKey,
+    required String cseApiKey,
+    required String cseCx,
+    void Function()? onGeminiUsage,
+    void Function(int statusCode, String errorMessage)? onGeminiError,
+    void Function()? onCseUsage,
+    void Function(int statusCode, String errorMessage)? onCseError,
+  }) async {
+    final geminiService = GeminiService(
+      onUsage: onGeminiUsage,
+      onError: onGeminiError,
+    );
 
     try {
       // 1. Cari berita via Google Custom Search API (Direct)
       List<SearchResult> searchResults = [];
       try {
-        searchResults = await _searchGoogleCSE(query);
+        searchResults = await _searchGoogleCSE(
+          query,
+          apiKey: cseApiKey,
+          cx: cseCx,
+        );
         debugPrint(
           '=== SEARCH API: Google CSE returned ${searchResults.length} results ===',
         );
+        // Record successful CSE usage
+        onCseUsage?.call();
       } catch (cseError) {
         debugPrint(
           '=== SEARCH API: Google CSE failed: $cseError, continuing with Gemini only ===',
         );
+        // Rethrow jika error berkaitan API key agar bisa ditangkap di caller
+        if (cseError is CseApiException) {
+          onCseError?.call(cseError.statusCode, cseError.message);
+        }
       }
 
       // 2. Analisis hasil pencarian dengan Gemini AI (Client-side)
-      final analysis = await geminiService.analyzeClaim(query, searchResults);
+      final analysis = await geminiService.analyzeClaim(
+        geminiApiKey,
+        query,
+        searchResults,
+      );
 
       debugPrint(
         '=== SEARCH API: Returning ${searchResults.length} results + Gemini analysis ===',
@@ -44,9 +82,11 @@ class SearchApi {
     }
   }
 
-  Future<List<SearchResult>> _searchGoogleCSE(String query) async {
-    final apiKey = googleCseApiKey;
-    final cx = googleCseCx;
+  Future<List<SearchResult>> _searchGoogleCSE(
+    String query, {
+    required String apiKey,
+    required String cx,
+  }) async {
     final encodedQuery = Uri.encodeComponent(query);
 
     // URL Google Custom Search JSON API
@@ -108,14 +148,45 @@ class SearchApi {
           );
         }).toList();
       } else {
-        // Handle error dari Google API
-        final errorData = jsonDecode(response.body);
-        throw Exception(
-          'Google Search Error: ${errorData['error']?['message'] ?? response.statusCode}',
-        );
+        // === DETEKSI ERROR API KEY ===
+        String errorMsg = 'Google Search Error: Status ${response.statusCode}';
+
+        try {
+          final errorData = jsonDecode(response.body);
+          final apiError = errorData['error']?['message'] ?? '';
+          if (apiError.toString().isNotEmpty) {
+            errorMsg = apiError.toString();
+          }
+        } catch (_) {}
+
+        // Buat pesan user-friendly berdasarkan status code
+        if (response.statusCode == 429) {
+          errorMsg =
+              'Quota Google Search API habis. Silakan ganti API key di menu Pengaturan.';
+        } else if (response.statusCode == 403) {
+          errorMsg =
+              'API key Google Search tidak valid atau diblokir. Silakan ganti di Pengaturan.';
+        } else if (response.statusCode == 400) {
+          errorMsg =
+              'API key atau Search Engine ID bermasalah. Silakan periksa di Pengaturan.';
+        }
+
+        // Throw custom exception dengan status code
+        throw CseApiException(response.statusCode, errorMsg);
       }
     } finally {
       client.close();
     }
   }
+}
+
+/// Custom exception untuk CSE API errors agar bisa membawa status code.
+class CseApiException implements Exception {
+  final int statusCode;
+  final String message;
+
+  CseApiException(this.statusCode, this.message);
+
+  @override
+  String toString() => 'CseApiException($statusCode): $message';
 }

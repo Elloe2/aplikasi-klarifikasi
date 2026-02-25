@@ -1,20 +1,40 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../config.dart';
 import '../models/search_result.dart';
 import '../models/gemini_analysis.dart';
 
+/// === GEMINI SERVICE ===
+/// Service untuk berkomunikasi dengan Google Gemini AI API.
+/// Sekarang menerima API key sebagai parameter agar bisa dikelola
+/// secara dinamis oleh GeminiApiProvider.
+///
+/// Fitur baru:
+/// - Menerima API key dari luar (bukan hardcoded)
+/// - Callback untuk tracking penggunaan dan error
+/// - Deteksi error quota/invalid API key
 class GeminiService {
   static const String _baseUrl =
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent';
 
+  /// Callback yang dipanggil saat API berhasil digunakan
+  final void Function()? onUsage;
+
+  /// Callback yang dipanggil saat API mengembalikan error
+  /// Parameters: statusCode, errorMessage
+  final void Function(int statusCode, String errorMessage)? onError;
+
+  GeminiService({this.onUsage, this.onError});
+
+  /// Analisis klaim menggunakan Gemini AI.
+  /// [apiKey] - API key yang akan digunakan (dari GeminiApiProvider)
+  /// [claim] - Klaim yang akan dianalisis
+  /// [searchResults] - Hasil pencarian sumber berita
   Future<GeminiAnalysis> analyzeClaim(
+    String apiKey,
     String claim,
     List<SearchResult> searchResults,
   ) async {
-    final apiKey = geminiApiKey;
     final url = Uri.parse('$_baseUrl?key=$apiKey');
-
     final prompt = _buildPrompt(claim, searchResults);
 
     try {
@@ -38,14 +58,49 @@ class GeminiService {
         final text = data['candidates']?[0]?['content']?['parts']?[0]?['text'];
 
         if (text != null) {
+          // Record successful usage
+          onUsage?.call();
           return _parseResponse(text, claim);
         }
       }
 
-      return _getErrorResponse(
-        claim,
-        'Gagal mengambil analisis AI. Status: ${response.statusCode}',
-      );
+      // === ERROR HANDLING ===
+      // Deteksi jenis error berdasarkan status code
+      String errorMsg =
+          'Gagal mengambil analisis AI. Status: ${response.statusCode}';
+
+      // Coba parse error message dari response body
+      try {
+        final errorData = jsonDecode(response.body);
+        final apiError = errorData['error']?['message'] ?? '';
+        if (apiError.toString().isNotEmpty) {
+          errorMsg = apiError.toString();
+        }
+      } catch (_) {
+        // Ignore parse error
+      }
+
+      // Deteksi error quota atau API key invalid
+      if (response.statusCode == 400 ||
+          response.statusCode == 403 ||
+          response.statusCode == 429) {
+        // Tambahkan pesan khusus untuk error quota
+        if (response.statusCode == 429) {
+          errorMsg =
+              'Quota API key habis. Silakan ganti API key di menu Pengaturan.';
+        } else if (response.statusCode == 403) {
+          errorMsg =
+              'API key tidak valid atau diblokir. Silakan ganti API key di menu Pengaturan.';
+        } else if (response.statusCode == 400) {
+          errorMsg =
+              'API key bermasalah. Silakan periksa atau ganti API key di menu Pengaturan.';
+        }
+      }
+
+      // Record error via callback
+      onError?.call(response.statusCode, errorMsg);
+
+      return _getErrorResponse(claim, errorMsg);
     } catch (e) {
       return _getErrorResponse(claim, 'Terjadi kesalahan jaringan: $e');
     }

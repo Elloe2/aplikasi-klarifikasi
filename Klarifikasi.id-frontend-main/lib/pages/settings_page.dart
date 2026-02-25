@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/gemini_api_provider.dart';
+import '../providers/search_api_provider.dart';
 import '../pages/auth/login_page.dart';
 import '../pages/profile/edit_profile_page.dart';
 import '../pages/profile/change_password_page.dart';
@@ -260,6 +263,16 @@ class _SettingsPageState extends State<SettingsPage> {
               const SizedBox(height: 24),
             ],
 
+            // === GEMINI API SECTION ===
+            _buildGeminiApiSection(currentTheme),
+
+            const SizedBox(height: 16),
+
+            // === SEARCH API SECTION ===
+            _buildSearchApiSection(currentTheme),
+
+            const SizedBox(height: 16),
+
             // App Info Card berisi metadata aplikasi
             Container(
               decoration: BoxDecoration(
@@ -287,6 +300,1064 @@ class _SettingsPageState extends State<SettingsPage> {
             const _TrustedSourcesCard(),
           ],
         ),
+      ),
+    );
+  }
+
+  // === GEMINI API SECTION BUILDER ===
+  Widget _buildGeminiApiSection(ThemeData currentTheme) {
+    return Consumer<GeminiApiProvider>(
+      builder: (context, geminiProvider, _) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Gemini AI API',
+              style: currentTheme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // === ERROR BANNER ===
+            if (geminiProvider.isKeyExpired) ...[
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.redAccent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Colors.redAccent.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      color: Colors.redAccent,
+                      size: 24,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'API Key Bermasalah!',
+                            style: TextStyle(
+                              color: Colors.redAccent,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            geminiProvider.lastError ??
+                                'API key tidak valid atau quota habis.',
+                            style: const TextStyle(
+                              color: Colors.white60,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+
+            // === API KEY CARD ===
+            Container(
+              decoration: BoxDecoration(
+                gradient: AppTheme.cardGradient,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: geminiProvider.isKeyExpired
+                      ? Colors.redAccent.withValues(alpha: 0.3)
+                      : Colors.white.withValues(alpha: 0.05),
+                ),
+              ),
+              child: ListTile(
+                onTap: () => _showChangeApiKeyDialog(context, geminiProvider),
+                contentPadding: const EdgeInsets.all(16),
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: geminiProvider.isKeyExpired
+                        ? Colors.redAccent.withValues(alpha: 0.1)
+                        : AppTheme.primarySeedColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.vpn_key,
+                    color: geminiProvider.isKeyExpired
+                        ? Colors.redAccent
+                        : AppTheme.primarySeedColor,
+                    size: 24,
+                  ),
+                ),
+                title: const Text(
+                  'Ganti API Key',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        geminiProvider.maskedApiKey,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                        ),
+                      ),
+                      if (geminiProvider.isUsingCustomKey)
+                        const Text(
+                          'Menggunakan API key custom',
+                          style: TextStyle(
+                            color: AppTheme.primarySeedColor,
+                            fontSize: 11,
+                          ),
+                        )
+                      else
+                        const Text(
+                          'Menggunakan API key default',
+                          style: TextStyle(color: Colors.white38, fontSize: 11),
+                        ),
+                    ],
+                  ),
+                ),
+                trailing: const Icon(
+                  Icons.arrow_forward_ios,
+                  color: Colors.white30,
+                  size: 16,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // === USAGE STATISTICS CARD ===
+            Container(
+              decoration: BoxDecoration(
+                gradient: AppTheme.cardGradient,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+              ),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primarySeedColor.withValues(
+                            alpha: 0.1,
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          Icons.bar_chart,
+                          color: AppTheme.primarySeedColor,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'Statistik Penggunaan API',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                      // Reset button
+                      IconButton(
+                        onPressed: () =>
+                            _showResetStatsDialog(context, geminiProvider),
+                        icon: const Icon(
+                          Icons.refresh,
+                          color: Colors.white30,
+                          size: 20,
+                        ),
+                        tooltip: 'Reset statistik',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Stats Grid
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildStatItem(
+                          icon: Icons.analytics,
+                          label: 'Total',
+                          value: '${geminiProvider.totalUsageCount}',
+                          color: AppTheme.primarySeedColor,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildStatItem(
+                          icon: Icons.today,
+                          label: 'Hari Ini',
+                          value: '${geminiProvider.dailyUsageCount}',
+                          color: const Color(0xFF64B5F6),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Last Used
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.access_time,
+                          color: Colors.white38,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Terakhir digunakan: ${geminiProvider.lastUsedDisplay}',
+                          style: const TextStyle(
+                            color: Colors.white54,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 24),
+          ],
+        );
+      },
+    );
+  }
+
+  // === STAT ITEM WIDGET ===
+  Widget _buildStatItem({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              color: color,
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const Text(
+            'kali digunakan',
+            style: TextStyle(color: Colors.white38, fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // === DIALOG GANTI API KEY ===
+  void _showChangeApiKeyDialog(
+    BuildContext context,
+    GeminiApiProvider provider,
+  ) {
+    final controller = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Ganti API Key Gemini',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Masukkan API key baru dari Google AI Studio:',
+                style: TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+
+              // Current key info
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.key, color: Colors.white38, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Saat ini: ${provider.maskedApiKey}',
+                        style: const TextStyle(
+                          color: Colors.white38,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Input field
+              TextField(
+                controller: controller,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'AIzaSy...',
+                  hintStyle: const TextStyle(color: Colors.white30),
+                  filled: true,
+                  fillColor: Colors.black26,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  prefixIcon: const Icon(Icons.vpn_key, color: Colors.white38),
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.paste, color: Colors.white38),
+                    onPressed: () async {
+                      final data = await Clipboard.getData('text/plain');
+                      if (data?.text != null) {
+                        controller.text = data!.text!;
+                      }
+                    },
+                    tooltip: 'Paste dari clipboard',
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // Info box
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppTheme.primarySeedColor.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: AppTheme.primarySeedColor.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      color: AppTheme.primarySeedColor,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Dapatkan API key gratis di aistudio.google.com',
+                        style: TextStyle(color: Colors.white54, fontSize: 11),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          // Reset to default button
+          if (provider.isUsingCustomKey)
+            TextButton(
+              onPressed: () async {
+                await provider.resetToDefaultKey();
+                if (dialogContext.mounted) Navigator.pop(dialogContext);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('API key dikembalikan ke default'),
+                    ),
+                  );
+                }
+              },
+              child: const Text(
+                'Reset Default',
+                style: TextStyle(color: Colors.orangeAccent),
+              ),
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primarySeedColor,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: () async {
+              final newKey = controller.text.trim();
+              if (newKey.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('API key tidak boleh kosong')),
+                );
+                return;
+              }
+              if (!newKey.startsWith('AIza')) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Format API key tidak valid (harus dimulai dengan AIza)',
+                    ),
+                  ),
+                );
+                return;
+              }
+              await provider.updateApiKey(newKey);
+              if (dialogContext.mounted) Navigator.pop(dialogContext);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('API key berhasil diperbarui! 🎉'),
+                  ),
+                );
+              }
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // === DIALOG RESET STATISTIK ===
+  void _showResetStatsDialog(BuildContext context, GeminiApiProvider provider) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        title: const Text(
+          'Reset Statistik?',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'Semua statistik penggunaan API akan di-reset ke nol. Tindakan ini tidak bisa dibatalkan.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () async {
+              await provider.resetUsageStats();
+              if (dialogContext.mounted) Navigator.pop(dialogContext);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Statistik berhasil di-reset')),
+                );
+              }
+            },
+            child: const Text('Reset'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // === SEARCH API SECTION BUILDER ===
+  Widget _buildSearchApiSection(ThemeData currentTheme) {
+    return Consumer<SearchApiProvider>(
+      builder: (context, cseProvider, _) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Google Search API',
+              style: currentTheme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // === ERROR BANNER ===
+            if (cseProvider.isKeyExpired) ...[
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.orangeAccent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Colors.orangeAccent.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      color: Colors.orangeAccent,
+                      size: 24,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Search API Key Bermasalah!',
+                            style: TextStyle(
+                              color: Colors.orangeAccent,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            cseProvider.lastError ??
+                                'API key tidak valid atau quota habis.',
+                            style: const TextStyle(
+                              color: Colors.white60,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+
+            // === API KEY CARD ===
+            Container(
+              decoration: BoxDecoration(
+                gradient: AppTheme.cardGradient,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: cseProvider.isKeyExpired
+                      ? Colors.orangeAccent.withValues(alpha: 0.3)
+                      : Colors.white.withValues(alpha: 0.05),
+                ),
+              ),
+              child: ListTile(
+                onTap: () => _showChangeCseApiKeyDialog(context, cseProvider),
+                contentPadding: const EdgeInsets.all(16),
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: cseProvider.isKeyExpired
+                        ? Colors.orangeAccent.withValues(alpha: 0.1)
+                        : const Color(0xFF64B5F6).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.search,
+                    color: cseProvider.isKeyExpired
+                        ? Colors.orangeAccent
+                        : const Color(0xFF64B5F6),
+                    size: 24,
+                  ),
+                ),
+                title: const Text(
+                  'Ganti API Key & CX',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Key: ${cseProvider.maskedApiKey}',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                        ),
+                      ),
+                      Text(
+                        'CX: ${cseProvider.maskedCx}',
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 12,
+                        ),
+                      ),
+                      if (cseProvider.isUsingCustomKey)
+                        const Text(
+                          'Menggunakan API key custom',
+                          style: TextStyle(
+                            color: Color(0xFF64B5F6),
+                            fontSize: 11,
+                          ),
+                        )
+                      else
+                        const Text(
+                          'Menggunakan API key default',
+                          style: TextStyle(color: Colors.white38, fontSize: 11),
+                        ),
+                    ],
+                  ),
+                ),
+                trailing: const Icon(
+                  Icons.arrow_forward_ios,
+                  color: Colors.white30,
+                  size: 16,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // === USAGE STATISTICS CARD ===
+            Container(
+              decoration: BoxDecoration(
+                gradient: AppTheme.cardGradient,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+              ),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF64B5F6).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.bar_chart,
+                          color: Color(0xFF64B5F6),
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'Statistik Penggunaan Search',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () =>
+                            _showResetCseStatsDialog(context, cseProvider),
+                        icon: const Icon(
+                          Icons.refresh,
+                          color: Colors.white30,
+                          size: 20,
+                        ),
+                        tooltip: 'Reset statistik',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildStatItem(
+                          icon: Icons.analytics,
+                          label: 'Total',
+                          value: '${cseProvider.totalUsageCount}',
+                          color: const Color(0xFF64B5F6),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildStatItem(
+                          icon: Icons.today,
+                          label: 'Hari Ini',
+                          value: '${cseProvider.dailyUsageCount}',
+                          color: const Color(0xFF81C784),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.access_time,
+                          color: Colors.white38,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Terakhir digunakan: ${cseProvider.lastUsedDisplay}',
+                          style: const TextStyle(
+                            color: Colors.white54,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 24),
+          ],
+        );
+      },
+    );
+  }
+
+  // === DIALOG GANTI CSE API KEY & CX ===
+  void _showChangeCseApiKeyDialog(
+    BuildContext context,
+    SearchApiProvider provider,
+  ) {
+    final keyController = TextEditingController();
+    final cxController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Ganti Search API Key',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Masukkan API key dan Search Engine ID (CX):',
+                style: TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+
+              // Current key info
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.key, color: Colors.white38, size: 16),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Key: ${provider.maskedApiKey}',
+                            style: const TextStyle(
+                              color: Colors.white38,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(Icons.tag, color: Colors.white38, size: 16),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'CX: ${provider.maskedCx}',
+                            style: const TextStyle(
+                              color: Colors.white38,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // API Key input
+              const Text(
+                'API Key:',
+                style: TextStyle(color: Colors.white60, fontSize: 12),
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: keyController,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'AIzaSy...',
+                  hintStyle: const TextStyle(color: Colors.white30),
+                  filled: true,
+                  fillColor: Colors.black26,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  prefixIcon: const Icon(Icons.vpn_key, color: Colors.white38),
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.paste, color: Colors.white38),
+                    onPressed: () async {
+                      final data = await Clipboard.getData('text/plain');
+                      if (data?.text != null) {
+                        keyController.text = data!.text!;
+                      }
+                    },
+                    tooltip: 'Paste',
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // CX input
+              const Text(
+                'Search Engine ID (CX):',
+                style: TextStyle(color: Colors.white60, fontSize: 12),
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: cxController,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'Contoh: 6242f5825dedb4b59',
+                  hintStyle: const TextStyle(color: Colors.white30),
+                  filled: true,
+                  fillColor: Colors.black26,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  prefixIcon: const Icon(Icons.tag, color: Colors.white38),
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.paste, color: Colors.white38),
+                    onPressed: () async {
+                      final data = await Clipboard.getData('text/plain');
+                      if (data?.text != null) {
+                        cxController.text = data!.text!;
+                      }
+                    },
+                    tooltip: 'Paste',
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // Info box
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF64B5F6).withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: const Color(0xFF64B5F6).withValues(alpha: 0.2),
+                  ),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      color: Color(0xFF64B5F6),
+                      size: 16,
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Dapatkan API key di console.cloud.google.com\nCX di programmablesearchengine.google.com',
+                        style: TextStyle(color: Colors.white54, fontSize: 11),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          if (provider.isUsingCustomKey || provider.isUsingCustomCx)
+            TextButton(
+              onPressed: () async {
+                await provider.resetToDefault();
+                if (dialogContext.mounted) Navigator.pop(dialogContext);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Search API dikembalikan ke default'),
+                    ),
+                  );
+                }
+              },
+              child: const Text(
+                'Reset Default',
+                style: TextStyle(color: Colors.orangeAccent),
+              ),
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF64B5F6),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: () async {
+              final newKey = keyController.text.trim();
+              final newCx = cxController.text.trim();
+
+              // Minimal satu field harus diisi
+              if (newKey.isEmpty && newCx.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Isi minimal satu field')),
+                );
+                return;
+              }
+
+              // Validasi API key format
+              if (newKey.isNotEmpty && !newKey.startsWith('AIza')) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Format API key tidak valid (harus dimulai dengan AIza)',
+                    ),
+                  ),
+                );
+                return;
+              }
+
+              // Update yang diisi saja
+              if (newKey.isNotEmpty) await provider.updateApiKey(newKey);
+              if (newCx.isNotEmpty) await provider.updateCx(newCx);
+
+              if (dialogContext.mounted) Navigator.pop(dialogContext);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Search API berhasil diperbarui! 🎉'),
+                  ),
+                );
+              }
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // === DIALOG RESET STATISTIK CSE ===
+  void _showResetCseStatsDialog(
+    BuildContext context,
+    SearchApiProvider provider,
+  ) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        title: const Text(
+          'Reset Statistik Search?',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'Semua statistik penggunaan Search API akan di-reset ke nol.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () async {
+              await provider.resetUsageStats();
+              if (dialogContext.mounted) Navigator.pop(dialogContext);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Statistik Search berhasil di-reset'),
+                  ),
+                );
+              }
+            },
+            child: const Text('Reset'),
+          ),
+        ],
       ),
     );
   }
