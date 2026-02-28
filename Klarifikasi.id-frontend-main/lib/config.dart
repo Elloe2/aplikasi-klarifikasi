@@ -8,7 +8,7 @@
 /// - Gemini API key → GeminiApiProvider
 /// - Google CSE API key & CX → SearchApiProvider
 ///
-/// Gunakan context.read<Provider>().apiKey untuk mendapatkan key aktif.
+/// Gunakan `context.read<Provider>().apiKey` untuk mendapatkan key aktif.
 /// Konstanta di sini hanya digunakan sebagai default/fallback oleh providers.
 /// ============================================================================
 library;

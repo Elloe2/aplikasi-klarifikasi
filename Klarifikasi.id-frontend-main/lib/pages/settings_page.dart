@@ -722,10 +722,11 @@ class _SettingsPageState extends State<SettingsPage> {
           if (provider.isUsingCustomKey)
             TextButton(
               onPressed: () async {
+                final messenger = ScaffoldMessenger.of(context);
                 await provider.resetToDefaultKey();
                 if (dialogContext.mounted) Navigator.pop(dialogContext);
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  messenger.showSnackBar(
                     const SnackBar(
                       content: Text('API key dikembalikan ke default'),
                     ),
@@ -750,15 +751,16 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
             onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
               final newKey = controller.text.trim();
               if (newKey.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                messenger.showSnackBar(
                   const SnackBar(content: Text('API key tidak boleh kosong')),
                 );
                 return;
               }
               if (!newKey.startsWith('AIza')) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                messenger.showSnackBar(
                   const SnackBar(
                     content: Text(
                       'Format API key tidak valid (harus dimulai dengan AIza)',
@@ -770,7 +772,7 @@ class _SettingsPageState extends State<SettingsPage> {
               await provider.updateApiKey(newKey);
               if (dialogContext.mounted) Navigator.pop(dialogContext);
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                messenger.showSnackBar(
                   const SnackBar(
                     content: Text('API key berhasil diperbarui! 🎉'),
                   ),
@@ -806,10 +808,11 @@ class _SettingsPageState extends State<SettingsPage> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
             onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
               await provider.resetUsageStats();
               if (dialogContext.mounted) Navigator.pop(dialogContext);
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                messenger.showSnackBar(
                   const SnackBar(content: Text('Statistik berhasil di-reset')),
                 );
               }
@@ -1249,10 +1252,11 @@ class _SettingsPageState extends State<SettingsPage> {
           if (provider.isUsingCustomKey || provider.isUsingCustomCx)
             TextButton(
               onPressed: () async {
+                final messenger = ScaffoldMessenger.of(context);
                 await provider.resetToDefault();
                 if (dialogContext.mounted) Navigator.pop(dialogContext);
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  messenger.showSnackBar(
                     const SnackBar(
                       content: Text('Search API dikembalikan ke default'),
                     ),
@@ -1277,12 +1281,13 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
             onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
               final newKey = keyController.text.trim();
               final newCx = cxController.text.trim();
 
               // Minimal satu field harus diisi
               if (newKey.isEmpty && newCx.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                messenger.showSnackBar(
                   const SnackBar(content: Text('Isi minimal satu field')),
                 );
                 return;
@@ -1290,7 +1295,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
               // Validasi API key format
               if (newKey.isNotEmpty && !newKey.startsWith('AIza')) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                messenger.showSnackBar(
                   const SnackBar(
                     content: Text(
                       'Format API key tidak valid (harus dimulai dengan AIza)',
@@ -1306,7 +1311,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
               if (dialogContext.mounted) Navigator.pop(dialogContext);
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                messenger.showSnackBar(
                   const SnackBar(
                     content: Text('Search API berhasil diperbarui! 🎉'),
                   ),
@@ -1345,10 +1350,11 @@ class _SettingsPageState extends State<SettingsPage> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
             onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
               await provider.resetUsageStats();
               if (dialogContext.mounted) Navigator.pop(dialogContext);
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                messenger.showSnackBar(
                   const SnackBar(
                     content: Text('Statistik Search berhasil di-reset'),
                   ),
