@@ -7,10 +7,7 @@ import '../theme/app_theme.dart';
 class SourceDetailsList extends StatelessWidget {
   final List<SourceAnalysis> sources;
 
-  const SourceDetailsList({
-    super.key,
-    required this.sources,
-  });
+  const SourceDetailsList({super.key, required this.sources});
 
   @override
   Widget build(BuildContext context) {
@@ -115,10 +112,7 @@ class _SourceDetailCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppTheme.surfaceElevated.withValues(alpha: 0.5),
                 border: Border(
-                  left: BorderSide(
-                    color: _getStanceColor(),
-                    width: 3,
-                  ),
+                  left: BorderSide(color: _getStanceColor(), width: 3),
                 ),
               ),
               child: Text(
