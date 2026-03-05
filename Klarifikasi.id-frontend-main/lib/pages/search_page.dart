@@ -19,6 +19,7 @@ import '../models/saved_analysis.dart';
 import '../providers/saved_analysis_provider.dart';
 import '../providers/gemini_api_provider.dart';
 import '../providers/search_api_provider.dart';
+import '../providers/custom_prompt_provider.dart';
 import '../services/search_api.dart';
 import '../theme/app_theme.dart';
 import '../widgets/error_banner.dart';
@@ -332,6 +333,9 @@ class _SearchPageState extends State<SearchPage> {
         geminiApiKey: geminiApiKey,
         cseApiKey: cseApiKey,
         cseCx: cseCx,
+        customInstructions: context
+            .read<CustomPromptProvider>()
+            .customInstructions,
         onGeminiUsage: () {
           geminiProvider.recordUsage();
         },

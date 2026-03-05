@@ -1,8 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/saved_analysis.dart';
 import '../models/search_result.dart';
 import '../providers/saved_analysis_provider.dart';
@@ -25,6 +29,184 @@ class _SavedPageState extends State<SavedPage> {
     Future.microtask(() => provider.loadAnalyses());
   }
 
+  // === EXPORT HISTORY ===
+  Future<void> _exportHistory() async {
+    final provider = context.read<SavedAnalysisProvider>();
+
+    if (provider.analyses.isEmpty) {
+      _showSnackBar('Tidak ada data untuk diekspor', isError: true);
+      return;
+    }
+
+    try {
+      // Generate JSON
+      final jsonString = provider.exportToJson();
+
+      // Simpan ke file temporary
+      final tempDir = await getTemporaryDirectory();
+      final timestamp = DateTime.now()
+          .toIso8601String()
+          .replaceAll(':', '-')
+          .split('.')
+          .first;
+      final fileName = 'klarifikasi_backup_$timestamp.json';
+      final file = File('${tempDir.path}/$fileName');
+      await file.writeAsString(jsonString);
+
+      // Share file via system share dialog
+      final xFile = XFile(file.path, mimeType: 'application/json');
+      final result = await Share.shareXFiles(
+        [xFile],
+        subject: 'Backup Klarifikasi.id - ${provider.analyses.length} koleksi',
+        text:
+            'Backup data koleksi Klarifikasi.id (${provider.analyses.length} item)',
+      );
+
+      if (result.status == ShareResultStatus.success) {
+        _showSnackBar('${provider.analyses.length} koleksi berhasil diekspor');
+      }
+    } catch (e) {
+      _showSnackBar('Gagal mengekspor: $e', isError: true);
+    }
+  }
+
+  // === IMPORT HISTORY ===
+  Future<void> _importHistory() async {
+    try {
+      // Show confirmation dialog first
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: AppTheme.surfaceDark,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.file_download_outlined, color: Colors.white, size: 24),
+              SizedBox(width: 12),
+              Text('Import Koleksi', style: TextStyle(color: Colors.white)),
+            ],
+          ),
+          content: const Text(
+            'Pilih file backup (.json) dari Klarifikasi.id untuk mengimpor koleksi. Data duplikat akan dilewati secara otomatis.',
+            style: TextStyle(color: Colors.white70, height: 1.5),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(context, true),
+              icon: const Icon(Icons.folder_open, size: 18),
+              label: const Text('Pilih File'),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppTheme.primarySeedColor,
+              ),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed != true) return;
+
+      // Pick JSON file
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+        allowMultiple: false,
+      );
+
+      if (result == null || result.files.isEmpty) return;
+
+      final filePath = result.files.single.path;
+      if (filePath == null) {
+        _showSnackBar('Gagal membaca file', isError: true);
+        return;
+      }
+
+      // Read file content
+      final file = File(filePath);
+      final jsonString = await file.readAsString();
+
+      // Show loading
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          backgroundColor: AppTheme.surfaceDark,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          content: const Row(
+            children: [
+              CircularProgressIndicator(color: AppTheme.primarySeedColor),
+              SizedBox(width: 24),
+              Text('Mengimpor data...', style: TextStyle(color: Colors.white)),
+            ],
+          ),
+        ),
+      );
+
+      // Import
+      final provider = context.read<SavedAnalysisProvider>();
+      final importedCount = await provider.importFromJson(jsonString);
+
+      // Dismiss loading
+      if (mounted) Navigator.pop(context);
+
+      // Show result
+      if (importedCount > 0) {
+        _showSnackBar('$importedCount koleksi berhasil diimpor');
+      } else {
+        _showSnackBar(
+          'Tidak ada data baru untuk diimpor (semua sudah ada)',
+          isError: false,
+        );
+      }
+    } on FormatException catch (e) {
+      // Dismiss loading if still showing
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+      _showSnackBar(e.message, isError: true);
+    } catch (e) {
+      // Dismiss loading if still showing
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+      _showSnackBar('Gagal mengimpor: $e', isError: true);
+    }
+  }
+
+  void _showSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle_outline,
+              color: isError ? Colors.redAccent : AppTheme.primarySeedColor,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(message, style: const TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+        backgroundColor: AppTheme.surfaceElevated,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -38,29 +220,148 @@ class _SavedPageState extends State<SavedPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header
+              // Header with Export/Import actions
               Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
+                padding: const EdgeInsets.fromLTRB(24, 24, 12, 0),
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Koleksi Fakta',
-                      style: theme.textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                    // Title & Subtitle
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Koleksi Fakta',
+                            style: theme.textTheme.headlineMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Arsip analisis hoaks dan catatan pribadi Anda.',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: Colors.white70,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Arsip analisis hoaks dan catatan pribadi Anda.',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: Colors.white70,
+
+                    // Export / Import Menu
+                    PopupMenuButton<String>(
+                      icon: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.1),
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.more_vert,
+                          color: Colors.white70,
+                          size: 20,
+                        ),
                       ),
+                      color: AppTheme.surfaceElevated,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.1),
+                        ),
+                      ),
+                      offset: const Offset(0, 48),
+                      onSelected: (value) {
+                        if (value == 'export') {
+                          _exportHistory();
+                        } else if (value == 'import') {
+                          _importHistory();
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        PopupMenuItem<String>(
+                          value: 'export',
+                          enabled: provider.analyses.isNotEmpty,
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.file_upload_outlined,
+                                color: provider.analyses.isNotEmpty
+                                    ? AppTheme.primarySeedColor
+                                    : Colors.white24,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 12),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Ekspor Koleksi',
+                                    style: TextStyle(
+                                      color: provider.analyses.isNotEmpty
+                                          ? Colors.white
+                                          : Colors.white38,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  Text(
+                                    provider.analyses.isNotEmpty
+                                        ? '${provider.analyses.length} item'
+                                        : 'Tidak ada data',
+                                    style: TextStyle(
+                                      color: Colors.white38,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuDivider(height: 1),
+                        const PopupMenuItem<String>(
+                          value: 'import',
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.file_download_outlined,
+                                color: Colors.cyanAccent,
+                                size: 20,
+                              ),
+                              SizedBox(width: 12),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Impor Koleksi',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Dari file backup (.json)',
+                                    style: TextStyle(
+                                      color: Colors.white38,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
+              const SizedBox(height: 16),
 
               // Content
               Expanded(
@@ -96,6 +397,21 @@ class _SavedPageState extends State<SavedPage> {
           Text(
             'Simpan hasil analisis pencarian di sini.',
             style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white38),
+          ),
+          const SizedBox(height: 24),
+          // Import button when empty
+          OutlinedButton.icon(
+            onPressed: _importHistory,
+            icon: const Icon(Icons.file_download_outlined, size: 18),
+            label: const Text('Impor dari Backup'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.cyanAccent,
+              side: const BorderSide(color: Colors.cyanAccent, width: 1),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
           ),
         ],
       ),

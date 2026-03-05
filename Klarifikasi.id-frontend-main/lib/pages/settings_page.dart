@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/gemini_api_provider.dart';
 import '../providers/search_api_provider.dart';
+import '../providers/custom_prompt_provider.dart';
 import '../pages/auth/login_page.dart';
 import '../pages/profile/edit_profile_page.dart';
 import '../pages/profile/change_password_page.dart';
@@ -268,6 +269,11 @@ class _SettingsPageState extends State<SettingsPage> {
 
             const SizedBox(height: 16),
 
+            // === CUSTOM PROMPT SECTION ===
+            _buildCustomPromptSection(currentTheme),
+
+            const SizedBox(height: 16),
+
             // === SEARCH API SECTION ===
             _buildSearchApiSection(currentTheme),
 
@@ -288,7 +294,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   style: TextStyle(color: Colors.white),
                 ),
                 subtitle: Text(
-                  'v2.3.0',
+                  'v2.4.0',
                   style: TextStyle(color: Colors.white70),
                 ),
               ),
@@ -555,6 +561,466 @@ class _SettingsPageState extends State<SettingsPage> {
           ],
         );
       },
+    );
+  }
+
+  // === CUSTOM PROMPT SECTION BUILDER ===
+  Widget _buildCustomPromptSection(ThemeData currentTheme) {
+    return Consumer<CustomPromptProvider>(
+      builder: (context, promptProvider, _) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Custom Prompt AI',
+              style: currentTheme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // === CUSTOM PROMPT CARD ===
+            Container(
+              decoration: BoxDecoration(
+                gradient: AppTheme.cardGradient,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: promptProvider.isUsingCustom
+                      ? Colors.purpleAccent.withValues(alpha: 0.3)
+                      : Colors.white.withValues(alpha: 0.05),
+                ),
+              ),
+              child: ListTile(
+                onTap: () => _showCustomPromptEditor(context, promptProvider),
+                contentPadding: const EdgeInsets.all(16),
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.purpleAccent.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.tune,
+                    color: Colors.purpleAccent,
+                    size: 24,
+                  ),
+                ),
+                title: const Text(
+                  'Instruksi Analisis',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Kustomisasi perintah analisis Gemini AI',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      if (promptProvider.isUsingCustom)
+                        const Text(
+                          '✨ Menggunakan instruksi custom',
+                          style: TextStyle(
+                            color: Colors.purpleAccent,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        )
+                      else
+                        const Text(
+                          'Menggunakan instruksi default',
+                          style: TextStyle(color: Colors.white38, fontSize: 11),
+                        ),
+                    ],
+                  ),
+                ),
+                trailing: const Icon(
+                  Icons.arrow_forward_ios,
+                  color: Colors.white30,
+                  size: 16,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // === DIALOG EDITOR CUSTOM PROMPT ===
+  void _showCustomPromptEditor(
+    BuildContext context,
+    CustomPromptProvider provider,
+  ) {
+    final mainController = TextEditingController(
+      text: provider.mainInstructions,
+    );
+    final didukungController = TextEditingController(
+      text: provider.verdictDidukung,
+    );
+    final tidakDidukungController = TextEditingController(
+      text: provider.verdictTidakDidukung,
+    );
+    final verifikasiController = TextEditingController(
+      text: provider.verdictVerifikasi,
+    );
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: Colors.purpleAccent.withValues(alpha: 0.2)),
+        ),
+        insetPadding: const EdgeInsets.all(16),
+        title: const Row(
+          children: [
+            Icon(Icons.tune, color: Colors.purpleAccent, size: 24),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Edit Instruksi Analisis',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Info box
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.purpleAccent.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.purpleAccent.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        color: Colors.purpleAccent.withValues(alpha: 0.8),
+                        size: 16,
+                      ),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Text(
+                          'Kustomisasi prompt AI. ',
+                          style: TextStyle(
+                            color: Colors.white60,
+                            fontSize: 12,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // === SECTION 1: INSTRUKSI UTAMA (Poin 1-3) ===
+                const Text(
+                  'Prompt AI:',
+                  style: TextStyle(
+                    color: Colors.purpleAccent,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: mainController,
+                  maxLines: 6,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    height: 1.5,
+                  ),
+                  decoration: _promptInputDecoration(
+                    hint: 'Instruksi analisis utama...',
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // === SECTION 2: VERDICT (Poin 4) ===
+                Row(
+                  children: [
+                    const Icon(Icons.lock, color: Colors.white38, size: 14),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'Verdict:',
+                      style: TextStyle(
+                        color: Colors.purpleAccent,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text(
+                        'Nama verdict terkunci',
+                        style: TextStyle(color: Colors.white30, fontSize: 10),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // DIDUKUNG_DATA
+                _buildVerdictField(
+                  label: 'DIDUKUNG_DATA',
+                  color: const Color(0xFF10B981),
+                  controller: didukungController,
+                  hint: 'Deskripsi kapan verdict ini digunakan...',
+                ),
+                const SizedBox(height: 12),
+
+                // TIDAK_DIDUKUNG_DATA
+                _buildVerdictField(
+                  label: 'TIDAK_DIDUKUNG_DATA',
+                  color: const Color(0xFFEF4444),
+                  controller: tidakDidukungController,
+                  hint: 'Deskripsi kapan verdict ini digunakan...',
+                ),
+                const SizedBox(height: 12),
+
+                // MEMERLUKAN_VERIFIKASI
+                _buildVerdictField(
+                  label: 'MEMERLUKAN_VERIFIKASI',
+                  color: const Color(0xFFF59E0B),
+                  controller: verifikasiController,
+                  hint: 'Deskripsi kapan verdict ini digunakan...',
+                ),
+                const SizedBox(height: 16),
+
+                // Tips
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.03),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.06),
+                    ),
+                  ),
+                  child: const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '💡 Tips:',
+                        style: TextStyle(
+                          color: Colors.white54,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        '• Instruksi utama menentukan cara AI memeriksa sumber\n'
+                        '• Deskripsi verdict menentukan kapan masing-masing verdict dipilih\n'
+                        '• Nama verdict tidak bisa diubah agar format output tetap konsisten',
+                        style: TextStyle(
+                          color: Colors.white38,
+                          fontSize: 11,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          // Reset button
+          if (provider.isUsingCustom)
+            TextButton(
+              onPressed: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                await provider.resetToDefault();
+                if (dialogContext.mounted) Navigator.pop(dialogContext);
+                if (mounted) {
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('Instruksi dikembalikan ke default'),
+                    ),
+                  );
+                }
+              },
+              child: const Text(
+                'Reset Default',
+                style: TextStyle(color: Colors.orangeAccent),
+              ),
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.purpleAccent,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+
+              // Validasi
+              if (mainController.text.trim().isEmpty) {
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text('Instruksi utama tidak boleh kosong'),
+                  ),
+                );
+                return;
+              }
+              if (didukungController.text.trim().isEmpty ||
+                  tidakDidukungController.text.trim().isEmpty ||
+                  verifikasiController.text.trim().isEmpty) {
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text('Deskripsi verdict tidak boleh kosong'),
+                  ),
+                );
+                return;
+              }
+
+              await provider.updateInstructions(
+                mainInstructions: mainController.text,
+                verdictDidukung: didukungController.text,
+                verdictTidakDidukung: tidakDidukungController.text,
+                verdictVerifikasi: verifikasiController.text,
+              );
+              if (dialogContext.mounted) Navigator.pop(dialogContext);
+              if (mounted) {
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text('Instruksi analisis berhasil diperbarui! ✨'),
+                  ),
+                );
+              }
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // === VERDICT FIELD WIDGET ===
+  Widget _buildVerdictField({
+    required String label,
+    required Color color,
+    required TextEditingController controller,
+    required String hint,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Locked verdict name
+          Row(
+            children: [
+              Icon(Icons.lock, color: color.withValues(alpha: 0.6), size: 14),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Editable description
+          TextField(
+            controller: controller,
+            maxLines: 2,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              height: 1.4,
+            ),
+            decoration: _promptInputDecoration(hint: hint),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // === SHARED INPUT DECORATION ===
+  InputDecoration _promptInputDecoration({required String hint}) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(color: Colors.white24, fontSize: 13),
+      filled: true,
+      fillColor: Colors.black26,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Colors.purpleAccent, width: 1.5),
+      ),
+      contentPadding: const EdgeInsets.all(12),
+      isDense: true,
     );
   }
 

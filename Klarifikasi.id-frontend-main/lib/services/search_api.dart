@@ -31,6 +31,7 @@ class SearchApi {
     required String geminiApiKey,
     required String cseApiKey,
     required String cseCx,
+    String? customInstructions,
     void Function()? onGeminiUsage,
     void Function(int statusCode, String errorMessage)? onGeminiError,
     void Function()? onCseUsage,
@@ -70,6 +71,7 @@ class SearchApi {
         geminiApiKey,
         query,
         searchResults,
+        customInstructions: customInstructions,
       );
 
       debugPrint(

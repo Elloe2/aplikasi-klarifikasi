@@ -29,13 +29,19 @@ class GeminiService {
   /// [apiKey] - API key yang akan digunakan (dari GeminiApiProvider)
   /// [claim] - Klaim yang akan dianalisis
   /// [searchResults] - Hasil pencarian sumber berita
+  /// [customInstructions] - Instruksi custom dari user (opsional)
   Future<GeminiAnalysis> analyzeClaim(
     String apiKey,
     String claim,
-    List<SearchResult> searchResults,
-  ) async {
+    List<SearchResult> searchResults, {
+    String? customInstructions,
+  }) async {
     final url = Uri.parse('$_baseUrl?key=$apiKey');
-    final prompt = _buildPrompt(claim, searchResults);
+    final prompt = _buildPrompt(
+      claim,
+      searchResults,
+      customInstructions: customInstructions,
+    );
 
     try {
       final response = await http.post(
@@ -106,7 +112,11 @@ class GeminiService {
     }
   }
 
-  String _buildPrompt(String claim, List<SearchResult> searchResults) {
+  String _buildPrompt(
+    String claim,
+    List<SearchResult> searchResults, {
+    String? customInstructions,
+  }) {
     StringBuffer sourcesBuffer = StringBuffer();
 
     for (int i = 0; i < searchResults.length; i++) {
@@ -122,6 +132,17 @@ class GeminiService {
       sourcesBuffer.writeln('Ringkasan: ${r.snippet}');
     }
 
+    // Gunakan custom instructions jika ada, fallback ke default
+    final instructions =
+        customInstructions ??
+        '''1. Periksa apakah setiap sumber benar-benar berkaitan (RELEVAN) dengan isi klaim.
+2. Identifikasi sumber yang mendukung (PRO) dan sumber yang membantah (KONTRA) terhadap klaim.
+3. Bandingkan informasi antara satu sumber dengan sumber lainnya untuk melihat konsistensi data.
+4. Tentukan verdict:
+   - DIDUKUNG_DATA: Jika mayoritas sumber relevan mendukung klaim.
+   - TIDAK_DIDUKUNG_DATA: Jika mayoritas sumber relevan membantah klaim (hoaks).
+   - MEMERLUKAN_VERIFIKASI: Jika data kontradiktif atau tidak cukup bukti.''';
+
     return '''
 Analisis klaim berikut secara kritis berdasarkan data sumber berita yang diberikan.
 
@@ -131,13 +152,7 @@ SUMBER DATA:
 ${sourcesBuffer.toString()}
 
 TUGAS ANDA:
-1. Periksa apakah setiap sumber benar-benar berkaitan (RELEVAN) dengan isi klaim.
-2. Identifikasi sumber yang mendukung (PRO) dan sumber yang membantah (KONTRA) terhadap klaim.
-3. Bandingkan informasi antara satu sumber dengan sumber lainnya untuk melihat konsistensi data.
-4. Tentukan verdict:
-   - DIDUKUNG_DATA: Jika mayoritas sumber relevan mendukung klaim.
-   - TIDAK_DIDUKUNG_DATA: Jika mayoritas sumber relevan membantah klaim (hoaks).
-   - MEMERLUKAN_VERIFIKASI: Jika data kontradiktif atau tidak cukup bukti.
+$instructions
 
 ATURAN PENULISAN:
 - DILARANG KERAS menyebut "Sumber 1", "Sumber 2", dst. Ganti dengan nama domain (contoh: "menurut detik.com...", "dilansir dari antaranews.com...").
