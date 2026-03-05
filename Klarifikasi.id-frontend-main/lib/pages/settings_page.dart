@@ -728,7 +728,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       const SizedBox(width: 10),
                       const Expanded(
                         child: Text(
-                          'Kustomisasi prompt AI. ',
+                          'Saat kustomisasi prompt Harus ada . di akhir perubahan dan penambahan kalimat',
                           style: TextStyle(
                             color: Colors.white60,
                             fontSize: 12,
@@ -743,7 +743,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
                 // === SECTION 1: INSTRUKSI UTAMA (Poin 1-3) ===
                 const Text(
-                  'Prompt AI:',
+                  'Prompt AI :',
                   style: TextStyle(
                     color: Colors.purpleAccent,
                     fontSize: 13,
