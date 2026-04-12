@@ -23,6 +23,7 @@ import '../providers/custom_prompt_provider.dart';
 import '../services/search_api.dart';
 import '../theme/app_theme.dart';
 import '../widgets/error_banner.dart';
+import '../utils/tutorial_utils.dart';
 import '../widgets/gemini_chatbot.dart';
 import '../widgets/search_result_card.dart';
 
@@ -425,30 +426,41 @@ class _SearchPageState extends State<SearchPage> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppTheme.primarySeedColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppTheme.primarySeedColor.withValues(alpha: 0.3),
-                ),
+            InkWell(
+              onTap: () => launchUrl(
+                Uri.parse('https://aistudio.google.com/api-keys'),
+                mode: LaunchMode.externalApplication,
               ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.lightbulb_outline,
-                    color: AppTheme.primarySeedColor,
-                    size: 20,
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.primarySeedColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppTheme.primarySeedColor.withValues(alpha: 0.3),
                   ),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Text(
-                      'Dapatkan API key di\nconsole.cloud.google.com',
-                      style: TextStyle(color: Colors.white60, fontSize: 12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.launch,
+                      color: AppTheme.primarySeedColor,
+                      size: 20,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        'Dapatkan API key di\nconsole.cloud.google.com',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -519,25 +531,65 @@ class _SearchPageState extends State<SearchPage> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppTheme.primarySeedColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
+                color: AppTheme.primarySeedColor.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                  color: AppTheme.primarySeedColor.withValues(alpha: 0.3),
+                  color: AppTheme.primarySeedColor.withValues(alpha: 0.2),
                 ),
               ),
-              child: Row(
+              child: Column(
                 children: [
-                  Icon(
-                    Icons.lightbulb_outline,
-                    color: AppTheme.primarySeedColor,
-                    size: 20,
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.info_outline,
+                        color: AppTheme.primarySeedColor,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Dapatkan API key secara gratis di aistudio.google.com',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Text(
-                      'Dapatkan API key gratis di\naistudio.google.com',
-                      style: TextStyle(color: Colors.white60, fontSize: 12),
-                    ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => showApiKeyTutorialBottomSheet(context),
+                          icon: const Icon(Icons.help_outline, size: 14),
+                          label: const Text('Cara Buat Key', style: TextStyle(fontSize: 11)),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white70,
+                            side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () => launchUrl(
+                            Uri.parse('https://aistudio.google.com/api-keys'),
+                            mode: LaunchMode.externalApplication,
+                          ),
+                          icon: const Icon(Icons.launch, size: 14),
+                          label: const Text('Buka AI Studio', style: TextStyle(fontSize: 11)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.primarySeedColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../providers/auth_provider.dart';
 import '../providers/gemini_api_provider.dart';
 import '../providers/search_api_provider.dart';
@@ -9,7 +10,7 @@ import '../pages/auth/login_page.dart';
 import '../pages/profile/edit_profile_page.dart';
 import '../pages/profile/change_password_page.dart';
 import '../theme/app_theme.dart'; // Konsistensi warna dan gradient UI
-
+import '../utils/tutorial_utils.dart';
 /// Halaman pengaturan sederhana tanpa fitur pengguna.
 /// Hanya menampilkan informasi aplikasi dan sumber terpercaya.
 class SettingsPage extends StatefulWidget {
@@ -1153,9 +1154,9 @@ class _SettingsPageState extends State<SettingsPage> {
 
               const SizedBox(height: 12),
 
-              // Info box
+              // Info box and Tutorial Button
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: AppTheme.primarySeedColor.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(10),
@@ -1163,19 +1164,59 @@ class _SettingsPageState extends State<SettingsPage> {
                     color: AppTheme.primarySeedColor.withValues(alpha: 0.2),
                   ),
                 ),
-                child: Row(
+                child: Column(
                   children: [
-                    Icon(
-                      Icons.info_outline,
-                      color: AppTheme.primarySeedColor,
-                      size: 16,
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.info_outline,
+                          color: AppTheme.primarySeedColor,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            'Dapatkan API key secara gratis di aistudio.google.com',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'Dapatkan API key gratis di aistudio.google.com',
-                        style: TextStyle(color: Colors.white54, fontSize: 11),
-                      ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => _showApiKeyTutorialBottomSheet(context),
+                            icon: const Icon(Icons.help_outline, size: 14),
+                            label: const Text('Cara Buat Key', style: TextStyle(fontSize: 11)),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.white70,
+                              side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () => launchUrl(
+                              Uri.parse('https://aistudio.google.com/api-keys'),
+                              mode: LaunchMode.externalApplication,
+                            ),
+                            icon: const Icon(Icons.launch, size: 14),
+                            label: const Text('Buka AI Studio', style: TextStyle(fontSize: 11)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.primarySeedColor,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -1250,6 +1291,11 @@ class _SettingsPageState extends State<SettingsPage> {
         ],
       ),
     );
+  }
+
+  // === TUTORIAL BOTTOM SHEET ===
+  void _showApiKeyTutorialBottomSheet(BuildContext context) {
+    showApiKeyTutorialBottomSheet(context);
   }
 
   // === DIALOG RESET STATISTIK ===
@@ -1684,9 +1730,9 @@ class _SettingsPageState extends State<SettingsPage> {
 
               const SizedBox(height: 12),
 
-              // Info box
+              // Info box and Tutorial Button
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: const Color(0xFF64B5F6).withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(10),
@@ -1694,19 +1740,59 @@ class _SettingsPageState extends State<SettingsPage> {
                     color: const Color(0xFF64B5F6).withValues(alpha: 0.2),
                   ),
                 ),
-                child: const Row(
+                child: Column(
                   children: [
-                    Icon(
-                      Icons.info_outline,
-                      color: Color(0xFF64B5F6),
-                      size: 16,
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.info_outline,
+                          color: Color(0xFF64B5F6),
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            'Dapatkan API key secara gratis di aistudio.google.com',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Dapatkan API key di console.cloud.google.com\nCX di programmablesearchengine.google.com',
-                        style: TextStyle(color: Colors.white54, fontSize: 11),
-                      ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => _showApiKeyTutorialBottomSheet(context),
+                            icon: const Icon(Icons.help_outline, size: 14),
+                            label: const Text('Cara Buat Key', style: TextStyle(fontSize: 11)),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.white70,
+                              side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () => launchUrl(
+                              Uri.parse('https://aistudio.google.com/api-keys'),
+                              mode: LaunchMode.externalApplication,
+                            ),
+                            icon: const Icon(Icons.launch, size: 14),
+                            label: const Text('Buka AI Studio', style: TextStyle(fontSize: 11)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF64B5F6),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

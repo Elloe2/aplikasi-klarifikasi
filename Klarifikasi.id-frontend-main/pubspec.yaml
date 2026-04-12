@@ -51,6 +51,9 @@ flutter:
   assets:
     - assets/icons/
     - assets/images/
+    - assets/images/tutorial_step_1.png
+    - assets/images/tutorial_step_2.png
+    - assets/images/tutorial_step_3.png
     - assets/logo/
     - assets/font/
 
