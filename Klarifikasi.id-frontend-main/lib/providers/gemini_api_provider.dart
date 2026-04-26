@@ -1,5 +1,5 @@
 /// ============================================================================
-/// GEMINI API PROVIDER - KLARIFIKASI.ID FRONTEND
+/// GEMINI API PROVIDER - KLARIP FRONTEND
 /// ============================================================================
 /// Provider untuk mengelola Gemini API Key secara dinamis.
 /// Fitur:

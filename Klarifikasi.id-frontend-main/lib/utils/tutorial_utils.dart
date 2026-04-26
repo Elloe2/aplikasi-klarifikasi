@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:klarifikasi_id/theme/app_theme.dart';
+import 'package:klarip/theme/app_theme.dart';
 
 void showApiKeyTutorialBottomSheet(BuildContext context) {
   showModalBottomSheet(

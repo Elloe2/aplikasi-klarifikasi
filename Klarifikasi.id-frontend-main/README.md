@@ -1,4 +1,4 @@
-# 🌟 Klarifikasi.id v2.3.0
+# 🌟 Klarip v2.3.0
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.35.3-blue.svg)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.9.2+-0175C2.svg)](https://dart.dev)
@@ -74,7 +74,7 @@ Output APK akan tersimpan di `build/app/outputs/flutter-apk/app-release.apk`.
 ### 🎨 **Modern UI/UX**
 - **Spotify-Inspired Design**: Dark theme dengan SpotifyMix font family
 - **Responsive Design**: Optimized untuk desktop, tablet, dan mobile
-- **Custom Branding**: Logo Klarifikasi.id untuk favicon dan PWA icons
+- **Custom Branding**: Logo Klarip untuk favicon dan PWA icons
 - **Loading Animations**: Smooth loading states dengan custom animations
 - **Error Handling**: Comprehensive error dialogs dan feedback
 
@@ -213,7 +213,7 @@ Output APK akan tersimpan di `build/app/outputs/flutter-apk/app-release.apk`.
 ## 📁 Project Structure
 
 ```
-Klarifikasi.id Frontend/
+Klarip Frontend/
 ├── 📱 lib/                                    # Main application code
 │   ├── 🎯 app/                               # Application structure
 │   │   ├── app.dart                          # Root widget (MultiProvider + Auth routing)
@@ -253,7 +253,7 @@ Klarifikasi.id Frontend/
 │   └── 🎬 main.dart                          # Application entry point
 ├── 📦 pubspec.yaml                           # Dependencies & metadata
 ├── 🎨 assets/                                # Static assets
-│   ├── logo/                                # Klarifikasi.id & Gemini logos
+│   ├── logo/                                # Klarip & Gemini logos
 │   ├── icons/                               # Navigation icons
 │   ├── images/                              # App images
 │   └── font/                                # Custom fonts (SpotifyMix)
@@ -348,7 +348,7 @@ CREATE TABLE saved_analyses (
 ## 📊 Build Information
 
 ```
-App Name        : Klarifikasi.id
+App Name        : Klarip
 Version         : 2.3.0+1
 Framework       : Flutter 3.35.3
 Language        : Dart ^3.9.2
@@ -390,7 +390,7 @@ State Mgmt      : Provider (ChangeNotifier)
 
 ### **🎨 Enhanced UI/UX**
 - **Spotify-Inspired Design**: Dark theme dengan SpotifyMix font
-- **Custom Branding**: Logo Klarifikasi.id untuk semua platform
+- **Custom Branding**: Logo Klarip untuk semua platform
 - **Responsive Design**: Mobile-first dengan desktop optimization
 - **Loading States**: Smooth animations dan error handling
 

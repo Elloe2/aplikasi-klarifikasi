@@ -1,4 +1,4 @@
-// === KLARIFIKASI.ID SEARCH PAGE ===
+// === KLARIP SEARCH PAGE ===
 // Halaman utama aplikasi pencarian fakta dengan fitur-fitur canggih:
 // - Scroll behavior untuk suggestion panel
 // - Rate limiting dengan cooldown system
@@ -693,7 +693,7 @@ class _SearchPageState extends State<SearchPage> {
         elevation: 0,
         automaticallyImplyLeading: false, // Ensure no back button is shown
         title: Text(
-          'Klarifikasi.id',
+          'Klarip',
           style: theme.textTheme.headlineSmall?.copyWith(
             fontWeight: FontWeight.w700,
             color: Colors.white,

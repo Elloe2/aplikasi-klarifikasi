@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/saved_analysis.dart';
 import '../services/database_helper.dart';
 
@@ -18,7 +19,14 @@ class SavedAnalysisProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final data = await _dbHelper.queryAll('saved_analyses');
+      final prefs = await SharedPreferences.getInstance();
+      final userEmail = prefs.getString('user_email') ?? '';
+
+      final data = await _dbHelper.queryAll(
+        'saved_analyses',
+        where: 'user_email = ?',
+        whereArgs: [userEmail],
+      );
 
       _analyses = data.map((e) => SavedAnalysis.fromMap(e)).toList();
       _sortAnalyses();
@@ -43,7 +51,11 @@ class SavedAnalysisProvider extends ChangeNotifier {
 
   Future<void> addAnalysis(SavedAnalysis analysis) async {
     try {
-      await _dbHelper.insert('saved_analyses', analysis.toMap());
+      final prefs = await SharedPreferences.getInstance();
+      final userEmail = prefs.getString('user_email') ?? '';
+      
+      final newAnalysis = analysis.copyWith(userEmail: userEmail);
+      await _dbHelper.insert('saved_analyses', newAnalysis.toMap());
       await loadAnalyses(); // Reload list
     } catch (e) {
       debugPrint('Error adding analysis: $e');
@@ -108,11 +120,11 @@ class SavedAnalysisProvider extends ChangeNotifier {
   // ==========================================================================
 
   /// Mengekspor seluruh history sebagai JSON string.
-  /// Format: { "app": "klarifikasi_id", "version": "2.3.0",
+  /// Format: { "app": "klarip", "version": "2.3.0",
   ///           "exported_at": "...", "total": N, "data": [...] }
   String exportToJson() {
     final exportData = {
-      'app': 'klarifikasi_id',
+      'app': 'klarip',
       'version': '2.4.0',
       'exported_at': DateTime.now().toIso8601String(),
       'total': _analyses.length,
@@ -136,8 +148,8 @@ class SavedAnalysisProvider extends ChangeNotifier {
       }
 
       // Validasi format file
-      if (decoded['app'] != 'klarifikasi_id') {
-        throw FormatException('File ini bukan backup Klarifikasi.id');
+      if (decoded['app'] != 'klarip') {
+        throw FormatException('File ini bukan backup Klarip');
       }
 
       final dataList = decoded['data'] as List<dynamic>?;
@@ -151,10 +163,13 @@ class SavedAnalysisProvider extends ChangeNotifier {
 
       int importedCount = 0;
 
+      final prefs = await SharedPreferences.getInstance();
+      final userEmail = prefs.getString('user_email') ?? '';
+
       for (final item in dataList) {
         try {
           final map = item as Map<String, dynamic>;
-          final analysis = SavedAnalysis.fromMap(map);
+          final analysis = SavedAnalysis.fromMap(map).copyWith(userEmail: userEmail);
 
           // Skip duplikat berdasarkan claim text
           if (existingClaims.contains(analysis.claim.trim())) {

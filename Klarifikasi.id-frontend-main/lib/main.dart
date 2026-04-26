@@ -1,5 +1,5 @@
 /// =========================================================================
-/// ENTRY POINT - KLARIFIKASI.ID FLUTTER APPLICATION
+/// ENTRY POINT - KLARIP FLUTTER APPLICATION
 /// =========================================================================
 /// File ini adalah pintu masuk pertama ketika aplikasi dijalankan.
 /// Tanggung jawab utamanya hanya memanggil `runApp()` dengan root widget

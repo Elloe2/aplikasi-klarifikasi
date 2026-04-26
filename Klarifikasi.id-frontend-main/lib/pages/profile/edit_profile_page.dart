@@ -17,36 +17,18 @@ class _EditProfilePageState extends State<EditProfilePage> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _fullNameController;
   late TextEditingController _usernameController;
-  late TextEditingController _ageController;
-  String? _selectedEducation;
-
-  final List<String> _educationLevels = [
-    'SD',
-    'SMP',
-    'SMA/SMK',
-    'D3',
-    'S1',
-    'S2',
-    'S3',
-    'Lainnya',
-  ];
 
   @override
   void initState() {
     super.initState();
     _fullNameController = TextEditingController(text: widget.user.fullName);
     _usernameController = TextEditingController(text: widget.user.username);
-    _ageController = TextEditingController(
-      text: widget.user.age?.toString() ?? '',
-    );
-    _selectedEducation = widget.user.education;
   }
 
   @override
   void dispose() {
     _fullNameController.dispose();
     _usernameController.dispose();
-    _ageController.dispose();
     super.dispose();
   }
 
@@ -55,8 +37,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
       final updatedUser = widget.user.copyWith(
         fullName: _fullNameController.text.trim(),
         username: _usernameController.text.trim(),
-        age: int.tryParse(_ageController.text.trim()),
-        education: _selectedEducation,
       );
 
       final success = await context.read<AuthProvider>().updateProfile(
@@ -127,59 +107,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   }
                   return null;
                 },
-              ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildLabel('Umur'),
-                        TextFormField(
-                          controller: _ageController,
-                          style: const TextStyle(color: Colors.white),
-                          keyboardType: TextInputType.number,
-                          decoration: _buildInputDecoration('Contoh: 25'),
-                          validator: (value) {
-                            if (value != null && value.isNotEmpty) {
-                              if (int.tryParse(value) == null) {
-                                return 'Harus angka';
-                              }
-                            }
-                            return null;
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildLabel('Pendidikan'),
-                        DropdownButtonFormField<String>(
-                          initialValue: _selectedEducation,
-                          dropdownColor: AppTheme.surfaceDark,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: _buildInputDecoration('Pilih jenjang'),
-                          items: _educationLevels.map((level) {
-                            return DropdownMenuItem(
-                              value: level,
-                              child: Text(level),
-                            );
-                          }).toList(),
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedEducation = value;
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
               ),
               const SizedBox(height: 40),
               SizedBox(

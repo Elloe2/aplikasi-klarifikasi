@@ -49,7 +49,7 @@ class _SavedPageState extends State<SavedPage> {
           .replaceAll(':', '-')
           .split('.')
           .first;
-      final fileName = 'klarifikasi_backup_$timestamp.json';
+      final fileName = 'klarip_backup_$timestamp.json';
       final file = File('${tempDir.path}/$fileName');
       await file.writeAsString(jsonString);
 
@@ -57,9 +57,9 @@ class _SavedPageState extends State<SavedPage> {
       final xFile = XFile(file.path, mimeType: 'application/json');
       final result = await Share.shareXFiles(
         [xFile],
-        subject: 'Backup Klarifikasi.id - ${provider.analyses.length} koleksi',
+        subject: 'Backup Klarip - ${provider.analyses.length} koleksi',
         text:
-            'Backup data koleksi Klarifikasi.id (${provider.analyses.length} item)',
+            'Backup data koleksi Klarip (${provider.analyses.length} item)',
       );
 
       if (result.status == ShareResultStatus.success) {
@@ -90,7 +90,7 @@ class _SavedPageState extends State<SavedPage> {
             ],
           ),
           content: const Text(
-            'Pilih file backup (.json) dari Klarifikasi.id untuk mengimpor koleksi. Data duplikat akan dilewati secara otomatis.',
+            'Pilih file backup (.json) dari Klarip untuk mengimpor koleksi. Data duplikat akan dilewati secara otomatis.',
             style: TextStyle(color: Colors.white70, height: 1.5),
           ),
           actions: [

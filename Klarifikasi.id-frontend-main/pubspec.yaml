@@ -1,4 +1,4 @@
-name: klarifikasi_id
+name: klarip
 description: "Aplikasi klarifikasi hoaks dengan Flutter dan Laravel backend."
 publish_to: 'none'
 version: 2.4.0+1

@@ -1,5 +1,5 @@
 /// ============================================================================
-/// SEARCH RESULT MODEL - KLARIFIKASI.ID FRONTEND
+/// SEARCH RESULT MODEL - KLARIP FRONTEND
 /// ============================================================================
 /// Model class untuk merepresentasikan satu hasil pencarian dari Google CSE.
 /// Berisi informasi artikel/berita yang didapat langsung dari Google CSE API.

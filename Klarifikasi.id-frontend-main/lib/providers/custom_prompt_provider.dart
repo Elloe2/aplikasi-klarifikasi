@@ -1,5 +1,5 @@
 /// ============================================================================
-/// CUSTOM PROMPT PROVIDER - KLARIFIKASI.ID FRONTEND
+/// CUSTOM PROMPT PROVIDER - KLARIP FRONTEND
 /// ============================================================================
 /// Provider untuk mengelola custom prompt instruksi analisis Gemini AI.
 /// User bisa mengkustomisasi bagian "TUGAS ANDA" dari prompt yang dikirim

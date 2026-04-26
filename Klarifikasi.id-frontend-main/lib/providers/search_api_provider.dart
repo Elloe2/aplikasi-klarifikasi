@@ -1,12 +1,12 @@
 /// ============================================================================
-/// SEARCH API PROVIDER - KLARIFIKASI.ID FRONTEND
+/// SEARCH API PROVIDER - KLARIP FRONTEND
 /// ============================================================================
-/// Provider untuk mengelola Google Custom Search Engine API Key & CX secara
-/// dinamis. Fitur:
-/// - Simpan/baca API key & CX dari SharedPreferences
+/// Provider untuk mengelola Google Custom Search Engine API Key & CX.
+/// API key & CX selalu menggunakan nilai DEFAULT dan tidak dapat diubah
+/// oleh pengguna. Fitur:
+/// - API key & CX terkunci ke nilai default (tidak bisa diganti)
 /// - Track penggunaan API (jumlah panggilan & waktu terakhir digunakan)
 /// - Deteksi error quota/invalid API key
-/// - Notifikasi pop-up ketika API key habis/tidak valid
 /// ============================================================================
 library;
 
@@ -17,8 +17,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// ChangeNotifier yang mengelola seluruh lifecycle Google CSE API Key & CX.
 class SearchApiProvider extends ChangeNotifier {
   // === STORAGE KEYS ===
-  static const String _keyApiKey = 'cse_api_key';
-  static const String _keyCx = 'cse_cx';
   static const String _keyUsageCount = 'cse_usage_count';
   static const String _keyLastUsed = 'cse_last_used';
   static const String _keyLastError = 'cse_last_error';
@@ -66,11 +64,11 @@ class SearchApiProvider extends ChangeNotifier {
   /// Apakah masih loading data dari storage
   bool get isLoading => _isLoading;
 
-  /// Cek apakah menggunakan API key custom (bukan default)
-  bool get isUsingCustomKey => _apiKey != _defaultApiKey;
+  /// Search API key selalu menggunakan default (tidak dapat diubah)
+  bool get isUsingCustomKey => false;
 
-  /// Cek apakah menggunakan CX custom (bukan default)
-  bool get isUsingCustomCx => _cx != _defaultCx;
+  /// Search CX selalu menggunakan default (tidak dapat diubah)
+  bool get isUsingCustomCx => false;
 
   /// API key yang di-mask untuk ditampilkan di UI
   String get maskedApiKey {
@@ -90,6 +88,7 @@ class SearchApiProvider extends ChangeNotifier {
   }
 
   // === LOAD DATA DARI STORAGE ===
+  // API key & CX selalu pakai default — tidak dibaca dari storage.
   Future<void> _loadFromStorage() async {
     _isLoading = true;
     notifyListeners();
@@ -97,8 +96,10 @@ class SearchApiProvider extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
 
-      _apiKey = prefs.getString(_keyApiKey) ?? _defaultApiKey;
-      _cx = prefs.getString(_keyCx) ?? _defaultCx;
+      // API key & CX selalu default, tidak dapat diubah
+      _apiKey = _defaultApiKey;
+      _cx = _defaultCx;
+
       _totalUsageCount = prefs.getInt(_keyUsageCount) ?? 0;
       _dailyUsageCount = prefs.getInt(_keyDailyUsage) ?? 0;
       _dailyDate = prefs.getString(_keyDailyDate) ?? '';
@@ -127,61 +128,8 @@ class SearchApiProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // === UPDATE API KEY ===
-  Future<void> updateApiKey(String newKey) async {
-    final trimmedKey = newKey.trim();
-    if (trimmedKey.isEmpty) return;
-
-    _apiKey = trimmedKey;
-    _isKeyExpired = false;
-    _lastError = null;
-
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_keyApiKey, trimmedKey);
-      await prefs.remove(_keyLastError);
-    } catch (e) {
-      debugPrint('SearchApiProvider: Error saving API key: $e');
-    }
-
-    notifyListeners();
-  }
-
-  // === UPDATE CX ===
-  Future<void> updateCx(String newCx) async {
-    final trimmedCx = newCx.trim();
-    if (trimmedCx.isEmpty) return;
-
-    _cx = trimmedCx;
-
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_keyCx, trimmedCx);
-    } catch (e) {
-      debugPrint('SearchApiProvider: Error saving CX: $e');
-    }
-
-    notifyListeners();
-  }
-
-  // === RESET KE DEFAULT ===
-  Future<void> resetToDefault() async {
-    _apiKey = _defaultApiKey;
-    _cx = _defaultCx;
-    _isKeyExpired = false;
-    _lastError = null;
-
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_keyApiKey, _defaultApiKey);
-      await prefs.setString(_keyCx, _defaultCx);
-      await prefs.remove(_keyLastError);
-    } catch (e) {
-      debugPrint('SearchApiProvider: Error resetting to default: $e');
-    }
-
-    notifyListeners();
-  }
+  // updateApiKey, updateCx, dan resetToDefault dihapus.
+  // Search API key & CX selalu menggunakan nilai default dan tidak dapat diubah.
 
   // === RECORD PENGGUNAAN ===
   Future<void> recordUsage() async {

@@ -1,4 +1,4 @@
-# Assets Folder - Klarifikasi.id
+# Assets Folder - Klarip
 
 ## Icons (assets/icons/)
 

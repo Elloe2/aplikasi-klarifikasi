@@ -1,5 +1,5 @@
 /// ============================================================================
-/// KONFIGURASI API - KLARIFIKASI.ID FRONTEND
+/// KONFIGURASI API - KLARIP FRONTEND
 /// ============================================================================
 /// File ini berisi konfigurasi default untuk API keys yang digunakan aplikasi.
 /// Semua API dipanggil langsung dari client (tanpa backend server).

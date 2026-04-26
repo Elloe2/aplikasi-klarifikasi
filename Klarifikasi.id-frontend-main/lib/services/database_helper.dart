@@ -3,8 +3,8 @@ import 'package:path/path.dart';
 
 class DatabaseHelper {
   static const _databaseName =
-      "klarifikasi_v4.db"; // Changed name to force fresh DB
-  static const _databaseVersion = 2;
+      "klarip_v4.db"; // Changed name to force fresh DB
+  static const _databaseVersion = 3;
 
   DatabaseHelper._privateConstructor();
   static final DatabaseHelper _instance = DatabaseHelper._privateConstructor();
@@ -35,6 +35,10 @@ class DatabaseHelper {
       await db.execute('ALTER TABLE users ADD COLUMN age INTEGER');
       await db.execute('ALTER TABLE users ADD COLUMN education TEXT');
     }
+    if (oldVersion < 3) {
+      // Migration to version 3: Add user_email to saved_analyses
+      await db.execute('ALTER TABLE saved_analyses ADD COLUMN user_email TEXT');
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -51,7 +55,8 @@ class DatabaseHelper {
         source_url TEXT,
         analysis TEXT,
         saved_at TEXT,
-        is_favorite INTEGER DEFAULT 0
+        is_favorite INTEGER DEFAULT 0,
+        user_email TEXT
       )
     ''');
 
@@ -79,10 +84,12 @@ class DatabaseHelper {
 
   Future<List<Map<String, dynamic>>> queryAll(
     String table, {
+    String? where,
+    List<dynamic>? whereArgs,
     String? orderBy,
   }) async {
     final db = await database;
-    return await db.query(table, orderBy: orderBy);
+    return await db.query(table, where: where, whereArgs: whereArgs, orderBy: orderBy);
   }
 
   Future<int> update(

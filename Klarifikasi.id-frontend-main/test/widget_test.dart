@@ -7,10 +7,10 @@
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:klarifikasi_id/app/app.dart';
+import 'package:klarip/app/app.dart';
 
 void main() {
-  testWidgets('menampilkan beranda Klarifikasi.id', (tester) async {
+  testWidgets('menampilkan beranda Klarip', (tester) async {
     await tester.pumpWidget(const MainApp());
     await tester.pump();
 

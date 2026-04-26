@@ -10,6 +10,7 @@ class SavedAnalysis {
   final String sourceUrl;
   final DateTime savedAt;
   final bool isFavorite;
+  final String userEmail; // New field for user association
 
   SavedAnalysis({
     this.id,
@@ -23,6 +24,7 @@ class SavedAnalysis {
     this.sourceUrl = '',
     required this.savedAt,
     this.isFavorite = false,
+    this.userEmail = '',
   });
 
   Map<String, dynamic> toMap() {
@@ -38,6 +40,7 @@ class SavedAnalysis {
       'source_url': sourceUrl,
       'saved_at': savedAt.toIso8601String(),
       'is_favorite': isFavorite ? 1 : 0,
+      'user_email': userEmail,
     };
   }
 
@@ -54,6 +57,7 @@ class SavedAnalysis {
       sourceUrl: map['source_url'],
       savedAt: DateTime.parse(map['saved_at']),
       isFavorite: map['is_favorite'] == 1,
+      userEmail: map['user_email'] ?? '',
     );
   }
 
@@ -69,6 +73,7 @@ class SavedAnalysis {
     String? sourceUrl,
     DateTime? savedAt,
     bool? isFavorite,
+    String? userEmail,
   }) {
     return SavedAnalysis(
       id: id ?? this.id,
@@ -82,6 +87,7 @@ class SavedAnalysis {
       sourceUrl: sourceUrl ?? this.sourceUrl,
       savedAt: savedAt ?? this.savedAt,
       isFavorite: isFavorite ?? this.isFavorite,
+      userEmail: userEmail ?? this.userEmail,
     );
   }
 }

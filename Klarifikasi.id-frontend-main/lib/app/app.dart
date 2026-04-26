@@ -1,5 +1,5 @@
 /// ============================================================================
-/// MAIN APPLICATION WIDGET - KLARIFIKASI.ID
+/// MAIN APPLICATION WIDGET - KLARIP
 /// ============================================================================
 library;
 
@@ -35,7 +35,7 @@ class MainApp extends StatelessWidget {
         builder: (context, auth, _) {
           return MaterialApp(
             // Judul aplikasi yang muncul di window/browser tab
-            title: 'Klarifikasi.id',
+            title: 'Klarip',
             // Sembunyikan banner debug untuk tampilan yang bersih
             debugShowCheckedModeBanner: false,
             // Terapkan tema gelap custom dari `AppTheme`

@@ -1,5 +1,5 @@
 /// ============================================================================
-/// APP THEME - KLARIFIKASI.ID FRONTEND
+/// APP THEME - KLARIP FRONTEND
 /// ============================================================================
 /// File konfigurasi tema aplikasi dengan desain dark mode dan gradient.
 /// Mengatur color scheme, typography, dan component styling untuk konsistensi UI.
