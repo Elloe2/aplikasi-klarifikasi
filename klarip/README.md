@@ -1,9 +1,9 @@
-# 🌟 Klarip v2.3.0
+# 🌟 Klarip v2.4.0
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.35.3-blue.svg)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.9.2+-0175C2.svg)](https://dart.dev)
 [![Gemini AI](https://img.shields.io/badge/Gemini-2.5--flash--lite-green.svg)](https://ai.google.dev)
-[![Version](https://img.shields.io/badge/Version-2.3.0-green.svg)](https://github.com/Elloe2/aplikasi-klarifikasi)
+[![Version](https://img.shields.io/badge/Version-2.4.0-green.svg)](https://github.com/Elloe2/aplikasi-klarifikasi)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 > **Aplikasi fact-checking modern dengan AI Gemini** — dibangun dengan Flutter untuk membantu pengguna memverifikasi kebenaran informasi dan klaim secara real-time menggunakan teknologi AI terdepan. Dilengkapi sistem autentikasi lokal dan manajemen profil pengguna.
@@ -87,7 +87,7 @@ Output APK akan tersimpan di `build/app/outputs/flutter-apk/app-release.apk`.
 
 ## 📋 Changelog
 
-### **v2.3.0** - Authentication & Profile Management (Current)
+### **v2.4.0** - Authentication & Profile Management (Current)
 - 🔐 **Local Auth System**: Login, register, dan logout berbasis SQLite
 - 👤 **User Profile**: Edit profil (nama, username, usia, pendidikan)
 - 🔑 **Change Password**: Ganti password dengan validasi password lama
@@ -312,7 +312,7 @@ Sebelum memulai, pastikan Anda memiliki:
 
 ## 💾 Database Schema (SQLite Local)
 
-### **Users Table** *(v2.3.0 — NEW)*
+### **Users Table** *(v2.4.0 — NEW)*
 ```sql
 CREATE TABLE users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -349,7 +349,7 @@ CREATE TABLE saved_analyses (
 
 ```
 App Name        : Klarip
-Version         : 2.3.0+1
+Version         : 2.4.0+1
 Framework       : Flutter 3.35.3
 Language        : Dart ^3.9.2
 AI Model        : Google Gemini 2.5-flash-lite
@@ -361,7 +361,7 @@ State Mgmt      : Provider (ChangeNotifier)
 
 ---
 
-## 🎯 Key Features v2.3.0
+## 🎯 Key Features v2.4.0
 
 ### **🔐 Authentication System**
 - **Login**: Autentikasi dengan email & password (SQLite)

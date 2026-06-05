@@ -120,7 +120,7 @@ class SavedAnalysisProvider extends ChangeNotifier {
   // ==========================================================================
 
   /// Mengekspor seluruh history sebagai JSON string.
-  /// Format: { "app": "klarip", "version": "2.3.0",
+  /// Format: { "app": "klarip", "version": "2.4.0",
   ///           "exported_at": "...", "total": N, "data": [...] }
   String exportToJson() {
     final exportData = {
