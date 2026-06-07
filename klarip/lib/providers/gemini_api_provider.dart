@@ -26,7 +26,7 @@ class GeminiApiProvider extends ChangeNotifier {
 
   // === DEFAULT API KEY ===
   static const String _defaultApiKey =
-      'AIzaSyAnD4JUB291cnSR1sghyQTD6Q4gSrzBQ_4';
+      'AQ.Ab8RN6IcqiuL6ib9m5jUUG4zsDbafkI9BtkWfekTAmsKWh345Q';
 
   // === INTERNAL STATE ===
   String _apiKey = _defaultApiKey;

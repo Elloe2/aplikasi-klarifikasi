@@ -1,7 +1,7 @@
 name: klarip
 description: "Aplikasi klarifikasi hoaks dengan Flutter dan Laravel backend."
 publish_to: 'none'
-version: 2.4.0+1
+version: 1.2.0+1
 
 environment:
   sdk: ^3.9.2

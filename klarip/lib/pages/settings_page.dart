@@ -1235,16 +1235,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 );
                 return;
               }
-              if (!newKey.startsWith('AIza')) {
-                messenger.showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Format API key tidak valid (harus dimulai dengan AIza)',
-                    ),
-                  ),
-                );
-                return;
-              }
+
               await provider.updateApiKey(newKey);
               if (dialogContext.mounted) Navigator.pop(dialogContext);
               if (mounted) {

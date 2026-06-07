@@ -15,7 +15,7 @@ library;
 
 /// === DEFAULT GEMINI API KEY ===
 /// API key default bawaan aplikasi. Bisa diganti oleh user melalui Settings.
-const String defaultGeminiApiKey = 'AIzaSyAnD4JUB291cnSR1sghyQTD6Q4gSrzBQ_4';
+const String defaultGeminiApiKey = 'AQ.Ab8RN6IcqiuL6ib9m5jUUG4zsDbafkI9BtkWfekTAmsKWh345Q';
 
 /// === DEFAULT GOOGLE CSE API KEY ===
 /// API Key default untuk Google Custom Search Engine.

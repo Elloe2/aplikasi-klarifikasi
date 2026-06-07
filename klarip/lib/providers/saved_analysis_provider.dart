@@ -53,7 +53,7 @@ class SavedAnalysisProvider extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       final userEmail = prefs.getString('user_email') ?? '';
-      
+
       final newAnalysis = analysis.copyWith(userEmail: userEmail);
       await _dbHelper.insert('saved_analyses', newAnalysis.toMap());
       await loadAnalyses(); // Reload list
@@ -169,7 +169,9 @@ class SavedAnalysisProvider extends ChangeNotifier {
       for (final item in dataList) {
         try {
           final map = item as Map<String, dynamic>;
-          final analysis = SavedAnalysis.fromMap(map).copyWith(userEmail: userEmail);
+          final analysis = SavedAnalysis.fromMap(
+            map,
+          ).copyWith(userEmail: userEmail);
 
           // Skip duplikat berdasarkan claim text
           if (existingClaims.contains(analysis.claim.trim())) {
