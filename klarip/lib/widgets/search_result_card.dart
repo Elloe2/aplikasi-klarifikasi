@@ -1,13 +1,33 @@
-import 'package:flutter/material.dart';
-import '../models/search_result.dart';
-import '../theme/app_theme.dart';
+// ==============================================================================
+// WIDGET: KARTU HASIL PENCARIAN (SEARCH RESULT CARD) - KLARIP
+// ==============================================================================
+// File ini mengimplementasikan widget kustom [SearchResultCard].
+// Widget ini bertugas merender setiap item rujukan berita yang ditemukan oleh
+// Google Custom Search Engine (CSE).
+//
+// FITUR UTAMA CARD:
+// 1. **Formatting Social Media Link**: Mendeteksi tautan mentah dan menyederhanakannya
+//    (misal: "instagram.com/p/..." diubah menjadi label cantik "Postingan di Instagram").
+// 2. **Relative Time Calculator**: Menghitung selisih waktu publikasi berita dari saat ini
+//    secara real-time (misal: "2 hari yang lalu" atau "15 jam yang lalu").
+// 3. **Image Network Loader**: Dilengkapi loading fallback (ikon placeholder)
+//    dan error handling jika URL gambar thumbnail berita rusak/tidak dapat dimuat.
+// 4. **Interaksi Aksi**:
+//    - "Buka sumber": Membuka URL artikel berita di browser HP eksternal.
+//    - "Salin tautan": Menyalin URL ke clipboard HP untuk dibagikan.
+// ==============================================================================
 
+import 'package:flutter/material.dart'; // Paket komponen UI Flutter
+import '../models/search_result.dart'; // Model data representasi artikel berita Google CSE
+import '../theme/app_theme.dart'; // Warna dan gradasi tema gelap Klarip
+
+/// Kartu visual untuk merender detail satu rujukan artikel berita.
 class SearchResultCard extends StatelessWidget {
   const SearchResultCard({
     super.key,
-    required this.result,
-    required this.onOpen,
-    required this.onCopy,
+    required this.result, // Objek model SearchResult berisi judul, tautan, snippet, dll
+    required this.onOpen, // Callback pemicu untuk membuka URL di browser HP
+    required this.onCopy, // Callback pemicu menyalin URL ke clipboard
     this.onSave,
     this.showSaveButton = true,
   });
@@ -18,6 +38,10 @@ class SearchResultCard extends StatelessWidget {
   final VoidCallback? onSave;
   final bool showSaveButton;
 
+  // ==========================================================================
+  // HELPER METODE: FORMATING DISPLAY LINK MEDIA SOSIAL
+  // ==========================================================================
+  /// Mendeteksi domain link dan menyulapnya menjadi teks penjelasan lokal yang rapi.
   String _formatSocialMediaLink(String displayLink) {
     final lowerLink = displayLink.toLowerCase();
 
@@ -28,7 +52,7 @@ class SearchResultCard extends StatelessWidget {
       return 'Postingan di Facebook';
     } else if (lowerLink.contains('twitter.com') ||
         lowerLink.contains('x.com')) {
-      return 'Postingan di X';
+      return 'Postingan di X (Twitter)';
     } else if (lowerLink.contains('youtube.com') ||
         lowerLink.contains('youtu.be')) {
       return 'Postingan di YouTube';
@@ -42,14 +66,18 @@ class SearchResultCard extends StatelessWidget {
       return 'Postingan di Threads';
     }
 
-    return displayLink;
+    return displayLink; // Kembalikan domain aslinya jika bukan media sosial umum
   }
 
+  // ==========================================================================
+  // HELPER METODE: KALKULASI WAKTU RELATIF (RELATIVE TIME)
+  // ==========================================================================
+  /// Mengukur jarak waktu terbit berita terhadap waktu lokal sekarang (Time Difference).
   String _getRelativeTime(DateTime? date) {
     if (date == null) return '';
 
     final now = DateTime.now();
-    final difference = now.difference(date);
+    final difference = now.difference(date); // Hitung selisih waktu
 
     if (difference.inDays > 0) {
       return '${difference.inDays} hari yang lalu';
@@ -62,13 +90,16 @@ class SearchResultCard extends StatelessWidget {
     }
   }
 
+  // ==========================================================================
+  // TAMPILAN UTAMA (BUILD METHOD)
+  // ==========================================================================
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Container(
       decoration: BoxDecoration(
-        gradient: AppTheme.cardGradient,
+        gradient: AppTheme.cardGradient, // Latar gradasi gelap yang elegan
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
           color: theme.colorScheme.primary.withValues(alpha: 0.05),
@@ -82,6 +113,8 @@ class SearchResultCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // === GAMBAR THUMBNAIL BERITA ===
+                // Ditampilkan di kiri jika artikel memiliki image URL valid dari Google CSE
                 if (result.thumbnail != null && result.thumbnail!.isNotEmpty)
                   ClipRRect(
                     borderRadius: BorderRadius.circular(12),
@@ -90,17 +123,18 @@ class SearchResultCard extends StatelessWidget {
                       width: 72,
                       height: 72,
                       fit: BoxFit.cover,
+                      // Penanganan error: Sembunyikan jika URL gambar rusak
                       errorBuilder: (context, error, stackTrace) {
                         return const SizedBox.shrink();
                       },
+                      // Penanganan loading: Tampilkan ikon placeholder abu selama loading
                       loadingBuilder: (context, child, loadingProgress) {
                         if (loadingProgress == null) return child;
                         return Container(
                           width: 72,
                           height: 72,
                           decoration: BoxDecoration(
-                            color: theme.colorScheme.primaryContainer
-                                .withValues(alpha: 0.3),
+                            color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: const Icon(
@@ -113,13 +147,16 @@ class SearchResultCard extends StatelessWidget {
                     ),
                   ),
 
+                // Spasi antara thumbnail gambar dan informasi teks
                 if (result.thumbnail != null && result.thumbnail!.isNotEmpty)
                   const SizedBox(width: 16),
 
+                // === KONTEN TEKS INFORMASI BERITA ===
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Judul berita
                       Text(
                         result.title,
                         style: theme.textTheme.titleLarge?.copyWith(
@@ -131,6 +168,7 @@ class SearchResultCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
 
+                      // Badge domain portal berita (displayLink)
                       Row(
                         children: [
                           Expanded(
@@ -140,8 +178,8 @@ class SearchResultCard extends StatelessWidget {
                                 vertical: 6,
                               ),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFEFECE3),
-                                borderRadius: BorderRadius.circular(999),
+                                color: const Color(0xFFEFECE3), // Warna beige netral agar kontras
+                                borderRadius: BorderRadius.circular(999), // Pill shape border
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -154,15 +192,12 @@ class SearchResultCard extends StatelessWidget {
                                   const SizedBox(width: 6),
                                   Flexible(
                                     child: Text(
-                                      _formatSocialMediaLink(
-                                        result.displayLink,
-                                      ),
-                                      style: theme.textTheme.labelSmall
-                                          ?.copyWith(
+                                      _formatSocialMediaLink(result.displayLink),
+                                      style: theme.textTheme.labelSmall?.copyWith(
                                             color: const Color(0xFF4A70A9),
                                             fontWeight: FontWeight.w600,
                                           ),
-                                      overflow: TextOverflow.ellipsis,
+                                      overflow: TextOverflow.ellipsis, // Potong teks jika domain terlalu lebar
                                     ),
                                   ),
                                 ],
@@ -172,6 +207,7 @@ class SearchResultCard extends StatelessWidget {
                         ],
                       ),
 
+                      // Waktu relatif penerbitan berita (italic text)
                       if (_getRelativeTime(result.publishedDate).isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(left: 8, top: 4),
@@ -186,6 +222,7 @@ class SearchResultCard extends StatelessWidget {
 
                       const SizedBox(height: 12),
 
+                      // Cuplikan isi berita singkat (Snippet)
                       Text(
                         result.snippet,
                         maxLines: 5,
@@ -203,10 +240,12 @@ class SearchResultCard extends StatelessWidget {
 
             const SizedBox(height: 12),
 
+            // === BARIS TOMBOL INTERAKSI (ACTION BUTTONS) ===
             Wrap(
               spacing: 12,
               runSpacing: 8,
               children: [
+                // Tombol "Buka sumber"
                 OutlinedButton.icon(
                   onPressed: result.link.isEmpty
                       ? null
@@ -222,6 +261,7 @@ class SearchResultCard extends StatelessWidget {
                   label: const Text('Buka sumber'),
                 ),
 
+                // Tombol "Salin tautan"
                 OutlinedButton.icon(
                   onPressed: result.link.isEmpty
                       ? null
@@ -244,3 +284,4 @@ class SearchResultCard extends StatelessWidget {
     );
   }
 }
+

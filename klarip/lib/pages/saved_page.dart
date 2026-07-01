@@ -1,18 +1,42 @@
-import 'dart:convert';
-import 'dart:io';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:path_provider/path_provider.dart';
-import '../models/saved_analysis.dart';
-import '../models/search_result.dart';
-import '../providers/saved_analysis_provider.dart';
-import '../theme/app_theme.dart';
-import '../widgets/search_result_card.dart';
+// ==============================================================================
+// PENJELASAN UNTUK SIDANG: SAVED PAGE (HALAMAN KOLEKSI / RIWAYAT)
+// ==============================================================================
+// Bapak/Ibu Penguji, file `saved_page.dart` ini mengatur tampilan halaman "Koleksi".
+// Di halaman inilah seluruh riwayat penelusuran hoax pengguna disimpan secara lokal.
+//
+// FITUR UNGGULAN YANG BISA DIJELASKAN SAAT SIDANG:
+// 1. **Daftar Koleksi**: Mengambil data dari SQLite (Database Lokal). Kelebihannya,
+//    pengguna bisa melihat riwayat meskipun sedang tidak ada koneksi internet (Offline Mode).
+// 2. **Ekspor & Impor (Backup)**: Aplikasi bisa mengekspor database SQLite menjadi
+//    file `.json` dan membagikannya ke WhatsApp/Google Drive. Jika user ganti HP,
+//    mereka tinggal mengimpor file `.json` tersebut agar riwayatnya kembali (Restore).
+//    Algoritma impor kami juga otomatis memblokir "Data Duplikat" agar tidak ganda.
+// 3. **CRUD (Create, Read, Update, Delete)**: Di halaman ini, pengguna bisa:
+//    - Read: Membaca ulang hasil analisis AI.
+//    - Update: Menambah catatan/kesimpulan pribadi (Personal Note) pada riwayat tersebut.
+//    - Delete: Menghapus riwayat yang dirasa tidak penting.
+// 4. **Optimistic UI (Fitur Favorit)**: Ketika tombol bintang ditekan, UI langsung 
+//    berubah warna seketika tanpa menunggu loading dari database. Ini membuat
+//    aplikasi terasa sangat cepat (Responsif).
+// ==============================================================================
 
+import 'dart:convert'; // Untuk encoding/decoding JSON saat export dan import
+import 'dart:io'; // Operasi input/output file pada sistem operasi
+import 'package:flutter/material.dart'; // Komponen desain Material UI Flutter
+import 'package:flutter/services.dart'; // Untuk mengakses Clipboard HP (salin teks)
+import 'package:provider/provider.dart'; // State management Provider untuk sinkronisasi state
+import 'package:url_launcher/url_launcher.dart'; // Membuka link browser eksternal
+import 'package:share_plus/share_plus.dart'; // Berbagi berkas via dialog sharing HP
+import 'package:file_picker/file_picker.dart'; // Mengakses explorer HP untuk pilih file
+import 'package:path_provider/path_provider.dart'; // Mendapatkan path direktori sistem HP
+import '../models/saved_analysis.dart'; // Model data riwayat analisis
+import '../models/search_result.dart'; // Model data satu artikel hasil pencarian
+import '../providers/saved_analysis_provider.dart'; // Provider pengelola riwayat analisis
+import '../theme/app_theme.dart'; // Pengaturan warna dan tema aplikasi
+import '../widgets/search_result_card.dart'; // Card kustom untuk menampilkan artikel sumber
+
+/// Widget halaman koleksi (SavedPage) yang menampilkan riwayat analisis tersimpan.
+/// Ditampilkan sebagai Tab 2 pada HomeShell.
 class SavedPage extends StatefulWidget {
   const SavedPage({super.key});
 
@@ -24,44 +48,56 @@ class _SavedPageState extends State<SavedPage> {
   @override
   void initState() {
     super.initState();
-    // Load data when page opens
+    // Memuat data riwayat dari database saat halaman pertama kali dibuka.
+    // Future.microtask digunakan agar pemanggilan loadAnalyses dilakukan tepat
+    // setelah frame pertama selesai dibangun (tidak menghambat rendering awal).
     final provider = context.read<SavedAnalysisProvider>();
     Future.microtask(() => provider.loadAnalyses());
   }
 
-  // === EXPORT HISTORY ===
+  // ==========================================================================
+  // METODE: EKSPOR RIWAYAT (EXPORT BACKUP)
+  // ==========================================================================
+  /// Mengambil semua riwayat analisis pengguna, mengonversinya menjadi format JSON,
+  /// menyimpannya ke dalam file temporer di memori HP, dan memicu dialog berbagi HP.
   Future<void> _exportHistory() async {
     final provider = context.read<SavedAnalysisProvider>();
 
+    // Validasi: Jika tidak ada riwayat sama sekali, batalkan ekspor.
     if (provider.analyses.isEmpty) {
       _showSnackBar('Tidak ada data untuk diekspor', isError: true);
       return;
     }
 
     try {
-      // Generate JSON
+      // 1. Konversi daftar riwayat di memori menjadi format teks JSON yang rapi
       final jsonString = provider.exportToJson();
 
-      // Simpan ke file temporary
+      // 2. Dapatkan direktori folder temporer yang disediakan oleh sistem operasi HP
       final tempDir = await getTemporaryDirectory();
+      
+      // 3. Buat nama file unik menggunakan format timestamp (waktu saat ini)
       final timestamp = DateTime.now()
           .toIso8601String()
-          .replaceAll(':', '-')
+          .replaceAll(':', '-') // Karakter ':' ilegal untuk nama file di beberapa OS
           .split('.')
           .first;
       final fileName = 'klarip_backup_$timestamp.json';
+      
+      // 4. Tulis file JSON tersebut secara fisik ke memori HP
       final file = File('${tempDir.path}/$fileName');
       await file.writeAsString(jsonString);
 
-      // Share file via system share dialog
+      // 5. Buka dialog share sistem operasi HP agar file JSON tersebut bisa dikirim
+      //    lewat WhatsApp, Email, Drive, atau disimpan di file manager.
       final xFile = XFile(file.path, mimeType: 'application/json');
       final result = await Share.shareXFiles(
         [xFile],
         subject: 'Backup Klarip - ${provider.analyses.length} koleksi',
-        text:
-            'Backup data koleksi Klarip (${provider.analyses.length} item)',
+        text: 'Backup data koleksi Klarip (${provider.analyses.length} item)',
       );
 
+      // Tampilkan konfirmasi jika proses berhasil
       if (result.status == ShareResultStatus.success) {
         _showSnackBar('${provider.analyses.length} koleksi berhasil diekspor');
       }
@@ -70,10 +106,14 @@ class _SavedPageState extends State<SavedPage> {
     }
   }
 
-  // === IMPORT HISTORY ===
+  // ==========================================================================
+  // METODE: IMPOR RIWAYAT (IMPORT BACKUP)
+  // ==========================================================================
+  /// Mengaktifkan file picker untuk memilih file .json backup aplikasi Klarip,
+  /// mem-parsing isinya, dan menyimpannya ke SQLite. Skip data yang duplikat.
   Future<void> _importHistory() async {
     try {
-      // Show confirmation dialog first
+      // 1. Tampilkan dialog konfirmasi persetujuan terlebih dahulu
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
@@ -110,15 +150,17 @@ class _SavedPageState extends State<SavedPage> {
         ),
       );
 
+      // Jika user memilih Batal, hentikan fungsi.
       if (confirmed != true) return;
 
-      // Pick JSON file
+      // 2. Jalankan file picker sistem untuk menyaring file ber-ekstensi .json saja
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['json'],
         allowMultiple: false,
       );
 
+      // Jika user membatalkan pemilihan file, keluar dari fungsi.
       if (result == null || result.files.isEmpty) return;
 
       final filePath = result.files.single.path;
@@ -127,20 +169,18 @@ class _SavedPageState extends State<SavedPage> {
         return;
       }
 
-      // Read file content
+      // 3. Baca teks di dalam file JSON tersebut
       final file = File(filePath);
       final jsonString = await file.readAsString();
 
-      // Show loading
+      // 4. Tampilkan layar loading (blocking dialog) agar user tahu proses sedang berjalan
       if (!mounted) return;
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (context) => AlertDialog(
           backgroundColor: AppTheme.surfaceDark,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           content: const Row(
             children: [
               CircularProgressIndicator(color: AppTheme.primarySeedColor),
@@ -151,14 +191,14 @@ class _SavedPageState extends State<SavedPage> {
         ),
       );
 
-      // Import
+      // 5. Kirim data teks JSON ke provider untuk diproses dan dimasukkan ke SQLite
       final provider = context.read<SavedAnalysisProvider>();
       final importedCount = await provider.importFromJson(jsonString);
 
-      // Dismiss loading
+      // 6. Tutup dialog loading
       if (mounted) Navigator.pop(context);
 
-      // Show result
+      // 7. Berikan feedback hasil impor kepada pengguna
       if (importedCount > 0) {
         _showSnackBar('$importedCount koleksi berhasil diimpor');
       } else {
@@ -168,13 +208,13 @@ class _SavedPageState extends State<SavedPage> {
         );
       }
     } on FormatException catch (e) {
-      // Dismiss loading if still showing
+      // Tutup dialog loading jika terjadi format error
       if (mounted && Navigator.canPop(context)) {
         Navigator.pop(context);
       }
       _showSnackBar(e.message, isError: true);
     } catch (e) {
-      // Dismiss loading if still showing
+      // Tutup dialog loading jika terjadi error umum
       if (mounted && Navigator.canPop(context)) {
         Navigator.pop(context);
       }
@@ -182,6 +222,7 @@ class _SavedPageState extends State<SavedPage> {
     }
   }
 
+  /// Utilitas pembantu untuk menampilkan pemberitahuan mengambang di bawah layar.
   void _showSnackBar(String message, {bool isError = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -207,26 +248,31 @@ class _SavedPageState extends State<SavedPage> {
     );
   }
 
+  // ==========================================================================
+  // TAMPILAN UTAMA (BUILD)
+  // ==========================================================================
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    
+    // watch() digunakan untuk mendengarkan perubahan daftar riwayat secara dinamis
     final provider = context.watch<SavedAnalysisProvider>();
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: Colors.transparent, // Transparan agar gradient background di bawah terlihat
       body: Container(
         decoration: const BoxDecoration(gradient: AppTheme.backgroundGradient),
         child: SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header with Export/Import actions
+              // === AREA HEADER ===
               Padding(
                 padding: const EdgeInsets.fromLTRB(24, 24, 12, 0),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Title & Subtitle
+                    // Judul Halaman & Subjudul
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -249,7 +295,7 @@ class _SavedPageState extends State<SavedPage> {
                       ),
                     ),
 
-                    // Export / Import Menu
+                    // Tombol Kebab Menu (...) untuk Aksi Ekspor / Impor
                     PopupMenuButton<String>(
                       icon: Container(
                         padding: const EdgeInsets.all(8),
@@ -269,9 +315,7 @@ class _SavedPageState extends State<SavedPage> {
                       color: AppTheme.surfaceElevated,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
-                        side: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.1),
-                        ),
+                        side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
                       ),
                       offset: const Offset(0, 48),
                       onSelected: (value) {
@@ -282,9 +326,10 @@ class _SavedPageState extends State<SavedPage> {
                         }
                       },
                       itemBuilder: (context) => [
+                        // Tombol menu Ekspor
                         PopupMenuItem<String>(
                           value: 'export',
-                          enabled: provider.analyses.isNotEmpty,
+                          enabled: provider.analyses.isNotEmpty, // Nonaktif jika koleksi kosong
                           child: Row(
                             children: [
                               Icon(
@@ -312,7 +357,7 @@ class _SavedPageState extends State<SavedPage> {
                                     provider.analyses.isNotEmpty
                                         ? '${provider.analyses.length} item'
                                         : 'Tidak ada data',
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                       color: Colors.white38,
                                       fontSize: 11,
                                     ),
@@ -323,6 +368,7 @@ class _SavedPageState extends State<SavedPage> {
                           ),
                         ),
                         const PopupMenuDivider(height: 1),
+                        // Tombol menu Impor
                         const PopupMenuItem<String>(
                           value: 'import',
                           child: Row(
@@ -363,13 +409,17 @@ class _SavedPageState extends State<SavedPage> {
               ),
               const SizedBox(height: 16),
 
-              // Content
+              // === BAGIAN KONTEN UTAMA ===
+              // Menggunakan percabangan kondisi:
+              // 1. Loading: Tampilkan spinner lingkaran
+              // 2. Kosong: Tampilkan ilustrasi Empty State
+              // 3. Ada data: Tampilkan list builder kartu riwayat
               Expanded(
                 child: provider.isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : provider.analyses.isEmpty
-                    ? _buildEmptyState(theme)
-                    : _buildList(provider.analyses),
+                        ? _buildEmptyState(theme)
+                        : _buildList(provider.analyses),
               ),
             ],
           ),
@@ -378,6 +428,7 @@ class _SavedPageState extends State<SavedPage> {
     );
   }
 
+  /// Tampilan visual ketika database kosong (belum ada riwayat yang disimpan)
   Widget _buildEmptyState(ThemeData theme) {
     return Center(
       child: Column(
@@ -399,7 +450,7 @@ class _SavedPageState extends State<SavedPage> {
             style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white38),
           ),
           const SizedBox(height: 24),
-          // Import button when empty
+          // Tombol impor yang langsung diletakkan di tengah untuk kemudahan akses
           OutlinedButton.icon(
             onPressed: _importHistory,
             icon: const Icon(Icons.file_download_outlined, size: 18),
@@ -418,6 +469,7 @@ class _SavedPageState extends State<SavedPage> {
     );
   }
 
+  /// Membangun daftar gulir (scrollable list) yang menampung kartu riwayat
   Widget _buildList(List<SavedAnalysis> items) {
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -430,6 +482,10 @@ class _SavedPageState extends State<SavedPage> {
   }
 }
 
+// ==============================================================================
+// SUB-WIDGET: KARTU ITEM RIWAYAT (_SavedItemCard)
+// ==============================================================================
+/// Menampilkan satu baris ringkasan data riwayat yang disimpan.
 class _SavedItemCard extends StatelessWidget {
   final SavedAnalysis item;
 
@@ -445,31 +501,25 @@ class _SavedItemCard extends StatelessWidget {
         side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: InkWell(
-        onTap: () => _showDetail(context),
+        onTap: () => _showDetail(context), // Ketuk kartu untuk buka detail (Bottom Sheet)
         borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header: Verdict Badge & Date
+              // === HEADER: BADGE VERDICT & TOMBOL FAVORIT ===
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  // Badge Hasil Analisis (DIDUKUNG / TIDAK DIDUKUNG / VERIFIKASI)
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: _getVerdictColor(
-                        item.verdict,
-                      ).withValues(alpha: 0.2),
+                      color: _getVerdictColor(item.verdict).withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: _getVerdictColor(
-                          item.verdict,
-                        ).withValues(alpha: 0.5),
+                        color: _getVerdictColor(item.verdict).withValues(alpha: 0.5),
                       ),
                     ),
                     child: Text(
@@ -481,26 +531,26 @@ class _SavedItemCard extends StatelessWidget {
                       ),
                     ),
                   ),
+                  // Tombol Favorit (Bintang)
                   IconButton(
                     icon: Icon(
                       item.isFavorite ? Icons.star : Icons.star_border,
                       color: item.isFavorite ? Colors.amber : Colors.white38,
                     ),
                     onPressed: () {
-                      context.read<SavedAnalysisProvider>().toggleFavorite(
-                        item.id!,
-                      );
+                      // Mengubah status favorit di database SQLite lokal
+                      context.read<SavedAnalysisProvider>().toggleFavorite(item.id!);
                     },
                   ),
                 ],
               ),
               const SizedBox(height: 12),
 
-              // Title aka Claim
+              // === JUDUL KLAIM ===
               Text(
                 _cleanText(item.claim),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+                maxLines: 2, // Batasi teks maksimal 2 baris agar tetap rapi
+                overflow: TextOverflow.ellipsis, // Sembunyikan sisa teks dengan tanda titik-titik (...)
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 16,
@@ -509,7 +559,7 @@ class _SavedItemCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
 
-              // User Note Preview
+              // === PRATINJAU CATATAN USER (JIKA ADA) ===
               if (item.userNote.isNotEmpty) ...[
                 Container(
                   padding: const EdgeInsets.all(8),
@@ -520,16 +570,12 @@ class _SavedItemCard extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      const Icon(
-                        Icons.edit_note,
-                        size: 16,
-                        color: Colors.white54,
-                      ),
+                      const Icon(Icons.edit_note, size: 16, color: Colors.white54),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           item.userNote,
-                          maxLines: 1,
+                          maxLines: 1, // Hanya pratinjau 1 baris di kartu luar
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: Colors.white70,
@@ -549,36 +595,44 @@ class _SavedItemCard extends StatelessWidget {
     );
   }
 
+  /// Membuka Bottom Sheet meluncur dari bawah untuk melihat detail analisis lengkap.
   void _showDetail(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true,
+      isScrollControlled: true, // Memungkinkan Bottom Sheet ditarik tinggi hingga 85% layar
       backgroundColor: Colors.transparent,
       builder: (context) => _DetailSheet(item: item),
     );
   }
 
+  /// Helper untuk mewarnai teks badge verdict agar konsisten
   Color _getVerdictColor(String verdict) {
     switch (verdict) {
       case 'DIDUKUNG_DATA':
-        return const Color(0xFF10B981);
+        return const Color(0xFF10B981); // Hijau
       case 'TIDAK_DIDUKUNG_DATA':
-        return const Color(0xFFEF4444);
+        return const Color(0xFFEF4444); // Merah
       case 'MEMERLUKAN_VERIFIKASI':
-        return const Color(0xFFF59E0B);
+        return const Color(0xFFF59E0B); // Kuning
       case 'Hasil Pencarian':
-        return Colors.cyanAccent;
+        return Colors.cyanAccent; // Cyan untuk mode pencarian berita murni
       default:
         return Colors.blue;
     }
   }
 
+  /// Merapikan teks verdict (misal: "DIDUKUNG_DATA" -> "DIDUKUNG DATA")
   String _formatVerdict(String verdict) {
     if (verdict == 'Hasil Pencarian') return 'Pencarian Web';
     return verdict.replaceAll('_', ' ');
   }
 }
 
+// ==============================================================================
+// SUB-WIDGET: DIALOG LEMBAR DETAIL (_DetailSheet)
+// ==============================================================================
+/// Menampilkan isi detail analisis AI, daftar artikel referensi yang digunakan,
+/// dan menyediakan form sunting (CRUD Update) catatan pribadi serta tombol hapus.
 class _DetailSheet extends StatefulWidget {
   final SavedAnalysis item;
 
@@ -590,11 +644,12 @@ class _DetailSheet extends StatefulWidget {
 
 class _DetailSheetState extends State<_DetailSheet> {
   late TextEditingController _noteController;
-  bool _isEditing = false;
+  bool _isEditing = false; // State: Apakah user sedang dalam mode mengetik catatan?
 
   @override
   void initState() {
     super.initState();
+    // Isi TextField catatan awal dengan catatan yang sudah ada di database
     _noteController = TextEditingController(text: widget.item.userNote);
   }
 
@@ -607,17 +662,18 @@ class _DetailSheetState extends State<_DetailSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Cek apakah keyboard HP sedang muncul di layar untuk menyesuaikan ruang spacer di bawah
     final isKeyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
 
     return Container(
-      height: MediaQuery.of(context).size.height * 0.85,
+      height: MediaQuery.of(context).size.height * 0.85, // Batasi tinggi max 85% layar
       decoration: const BoxDecoration(
         color: Color(0xFF1E1E1E),
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         children: [
-          // Handle
+          // Garis pegangan kecil penanda Bottom Sheet bisa digeser turun untuk ditutup
           Center(
             child: Container(
               margin: const EdgeInsets.only(top: 12),
@@ -630,7 +686,7 @@ class _DetailSheetState extends State<_DetailSheet> {
             ),
           ),
 
-          // Header Actions
+          // === TOMBOL AKSI ATAS (TUTUP & HAPUS) ===
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
@@ -638,21 +694,13 @@ class _DetailSheetState extends State<_DetailSheet> {
               children: [
                 IconButton(
                   icon: const Icon(Icons.close, color: Colors.white),
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(context), // Tutup Bottom Sheet
                 ),
                 Row(
                   children: [
+                    // Tombol Hapus (CRUD Delete)
                     IconButton(
-                      icon: const Icon(Icons.share, color: Colors.white),
-                      onPressed: () {
-                        // Share logic could be added here
-                      },
-                    ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.delete_outline,
-                        color: Colors.redAccent,
-                      ),
+                      icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
                       onPressed: () => _confirmDelete(context),
                     ),
                   ],
@@ -661,18 +709,18 @@ class _DetailSheetState extends State<_DetailSheet> {
             ),
           ),
 
+          // === AREA ISI DETAIL (SCROLLABLE LIST) ===
           Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               children: [
-                // Claim Header
+                // Label Teks Klaim
                 Text(
                   'Klaim:',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: Colors.white54,
-                  ),
+                  style: theme.textTheme.labelMedium?.copyWith(color: Colors.white54),
                 ),
                 const SizedBox(height: 4),
+                // Isi Teks Klaim
                 Text(
                   _cleanText(widget.item.claim),
                   style: theme.textTheme.titleLarge?.copyWith(
@@ -682,17 +730,15 @@ class _DetailSheetState extends State<_DetailSheet> {
                 ),
                 const SizedBox(height: 24),
 
-                // Analysis
+                // Bagian Hasil Analisis AI
                 _buildAnalysisSection(theme),
                 const SizedBox(height: 24),
 
-                // Notes Section (Integrated CRUD Update)
+                // Bagian CRUD Catatan Pribadi
                 _buildNoteSection(theme),
 
-                // Sources Link button removed per user request
-                SizedBox(
-                  height: isKeyboardVisible ? 300 : 40,
-                ), // Keyboard spacer
+                // Spacer pengganjal saat keyboard mengetik muncul agar textfield tidak tertutup keyboard
+                SizedBox(height: isKeyboardVisible ? 300 : 40),
               ],
             ),
           ),
@@ -701,6 +747,7 @@ class _DetailSheetState extends State<_DetailSheet> {
     );
   }
 
+  /// Membangun box berlatar belakang abu untuk menampilkan penjelasan ringkas AI
   Widget _buildAnalysisSection(ThemeData theme) {
     final isSearchResult = widget.item.verdict == 'Hasil Pencarian';
     final accentColor = isSearchResult ? Colors.cyanAccent : Colors.blueAccent;
@@ -724,9 +771,7 @@ class _DetailSheetState extends State<_DetailSheet> {
               const SizedBox(width: 8),
               Text(
                 isSearchResult ? 'Ringkasan Web' : 'Analisis AI',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: accentColor,
-                ),
+                style: theme.textTheme.titleMedium?.copyWith(color: accentColor),
               ),
             ],
           ),
@@ -738,6 +783,7 @@ class _DetailSheetState extends State<_DetailSheet> {
               height: 1.5,
             ),
           ),
+          // Jika ada data analisis mendalam terstruktur
           if (widget.item.analysis.isNotEmpty) ...[
             const Divider(color: Colors.white10, height: 32),
             _buildStructuredContent(theme, widget.item.analysis),
@@ -747,13 +793,13 @@ class _DetailSheetState extends State<_DetailSheet> {
     );
   }
 
+  /// Memproses isi data terstruktur di database.
+  /// Data artikel disimpan dalam format teks ter-serialize JSON agar menghemat tabel SQLite.
+  /// Di sini kita deserialisasi kembali untuk menampilkan daftar kartu artikel sumber yang dirujuk.
   Widget _buildStructuredContent(ThemeData theme, String analysisContent) {
     try {
-      // Try to parse structured JSON
       final data = jsonDecode(analysisContent);
-      if (data is Map &&
-          data.containsKey('ai_analysis') &&
-          data.containsKey('search_results')) {
+      if (data is Map && data.containsKey('ai_analysis') && data.containsKey('search_results')) {
         final aiText = data['ai_analysis'] as String;
         final rawResults = data['search_results'] as List;
         final results = rawResults
@@ -763,6 +809,7 @@ class _DetailSheetState extends State<_DetailSheet> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Penjelasan mendalam dari AI
             if (aiText.isNotEmpty) ...[
               Text(
                 aiText,
@@ -773,14 +820,10 @@ class _DetailSheetState extends State<_DetailSheet> {
               ),
               const SizedBox(height: 24),
             ],
-            // Section header for search results
+            // Header bagian daftar website sumber
             Row(
               children: [
-                Icon(
-                  Icons.language,
-                  color: AppTheme.primarySeedColor,
-                  size: 18,
-                ),
+                Icon(Icons.language, color: AppTheme.primarySeedColor, size: 18),
                 const SizedBox(width: 8),
                 Text(
                   'Sumber Pencarian (${results.length})',
@@ -792,13 +835,14 @@ class _DetailSheetState extends State<_DetailSheet> {
               ],
             ),
             const SizedBox(height: 12),
+            // Tampilkan list kartu referensi artikel
             if (results.isNotEmpty)
               ...results.map(
                 (res) => Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: SearchResultCard(
                     result: res,
-                    showSaveButton: false, // Already saved
+                    showSaveButton: false, // Sudah dalam folder simpan, tidak perlu tombol simpan lagi
                     onOpen: (url) async {
                       final uri = Uri.parse(url);
                       if (await canLaunchUrl(uri)) {
@@ -827,7 +871,7 @@ class _DetailSheetState extends State<_DetailSheet> {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.info_outline, color: Colors.white30, size: 18),
+                    const Icon(Icons.info_outline, color: Colors.white30, size: 18),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
@@ -848,7 +892,7 @@ class _DetailSheetState extends State<_DetailSheet> {
       debugPrint('Failed to parse structured content: $e');
     }
 
-    // Default simple text display
+    // Tampilan default berupa teks biasa jika data bukan JSON terstruktur
     return Text(
       analysisContent,
       style: theme.textTheme.bodySmall?.copyWith(
@@ -858,6 +902,11 @@ class _DetailSheetState extends State<_DetailSheet> {
     );
   }
 
+  // ==========================================================================
+  // FITUR: CRUD UPDATE - EDIT CATATAN PRIBADI
+  // ==========================================================================
+  /// Mengatur area pengisian dan pengeditan catatan pribadi.
+  /// User bisa beralih antara "mode melihat teks" dan "mode input teks" secara dinamis.
   Widget _buildNoteSection(ThemeData theme) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -869,6 +918,7 @@ class _DetailSheetState extends State<_DetailSheet> {
               'Catatan Pribadi',
               style: theme.textTheme.titleMedium?.copyWith(color: Colors.white),
             ),
+            // Tampilkan tombol "Edit" hanya jika sedang tidak dalam mode mengetik
             if (!_isEditing)
               TextButton.icon(
                 onPressed: () => setState(() => _isEditing = true),
@@ -881,6 +931,7 @@ class _DetailSheetState extends State<_DetailSheet> {
         if (_isEditing)
           Column(
             children: [
+              // Input Field Catatan
               TextField(
                 controller: _noteController,
                 maxLines: 3,
@@ -890,35 +941,33 @@ class _DetailSheetState extends State<_DetailSheet> {
                   hintStyle: const TextStyle(color: Colors.white30),
                   filled: true,
                   fillColor: Colors.black26,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
               const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
+                  // Tombol Batal Edit
                   TextButton(
                     onPressed: () {
                       setState(() {
                         _isEditing = false;
-                        _noteController.text = widget.item.userNote; // Reset
+                        _noteController.text = widget.item.userNote; // Kembalikan teks ke awal sebelum diedit
                       });
                     },
-                    child: const Text(
-                      'Batal',
-                      style: TextStyle(color: Colors.grey),
-                    ),
+                    child: const Text('Batal', style: TextStyle(color: Colors.grey)),
                   ),
                   const SizedBox(width: 8),
+                  // Tombol Simpan Perubahan (Operasi Update Database)
                   ElevatedButton(
                     onPressed: () async {
+                      // Panggil provider untuk memperbarui data di database SQLite
                       await context.read<SavedAnalysisProvider>().updateNote(
-                        widget.item.id!,
-                        _noteController.text,
-                      );
-                      setState(() => _isEditing = false);
+                            widget.item.id!,
+                            _noteController.text,
+                          );
+                      setState(() => _isEditing = false); // Kembali ke mode melihat teks
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Catatan diperbarui')),
@@ -932,6 +981,7 @@ class _DetailSheetState extends State<_DetailSheet> {
             ],
           )
         else
+          // Tampilan teks catatan yang sudah disimpan
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -941,16 +991,10 @@ class _DetailSheetState extends State<_DetailSheet> {
               border: Border.all(color: Colors.white10),
             ),
             child: Text(
-              widget.item.userNote.isEmpty
-                  ? 'Belum ada catatan'
-                  : widget.item.userNote,
+              widget.item.userNote.isEmpty ? 'Belum ada catatan' : widget.item.userNote,
               style: TextStyle(
-                color: widget.item.userNote.isEmpty
-                    ? Colors.white30
-                    : Colors.white70,
-                fontStyle: widget.item.userNote.isEmpty
-                    ? FontStyle.italic
-                    : FontStyle.normal,
+                color: widget.item.userNote.isEmpty ? Colors.white30 : Colors.white70,
+                fontStyle: widget.item.userNote.isEmpty ? FontStyle.italic : FontStyle.normal,
               ),
             ),
           ),
@@ -958,15 +1002,16 @@ class _DetailSheetState extends State<_DetailSheet> {
     );
   }
 
+  // ==========================================================================
+  // FITUR: CRUD DELETE - HAPUS DATA RIWAYAT
+  // ==========================================================================
+  /// Menampilkan dialog konfirmasi sebelum menghapus data agar tidak terhapus tidak sengaja.
   void _confirmDelete(BuildContext context) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1E1E1E),
-        title: const Text(
-          'Hapus Koleksi?',
-          style: TextStyle(color: Colors.white),
-        ),
+        title: const Text('Hapus Koleksi?', style: TextStyle(color: Colors.white)),
         content: const Text(
           'Analisis ini akan dihapus permanen dari penyimpanan lokal Anda.',
           style: TextStyle(color: Colors.white70),
@@ -976,17 +1021,19 @@ class _DetailSheetState extends State<_DetailSheet> {
             onPressed: () => Navigator.pop(context),
             child: const Text('Batal'),
           ),
+          // Tombol Hapus Konfirmasi
           TextButton(
             onPressed: () {
-              context.read<SavedAnalysisProvider>().deleteAnalysis(
-                widget.item.id!,
-              );
-              Navigator.pop(context); // Close dialog
-              Navigator.pop(context); // Close detail sheet
+              // Pemicu operasi delete SQLite melalui provider
+              context.read<SavedAnalysisProvider>().deleteAnalysis(widget.item.id!);
+              
+              Navigator.pop(context); // Tutup popup dialog konfirmasi
+              Navigator.pop(context); // Tutup Bottom Sheet detail analisis
+              
               if (context.mounted) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text('Item dihapus')));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Item dihapus')),
+                );
               }
             },
             child: const Text('Hapus', style: TextStyle(color: Colors.red)),
@@ -997,19 +1044,19 @@ class _DetailSheetState extends State<_DetailSheet> {
   }
 }
 
-// Helper untuk membersihkan teks jika berisi JSON (fallback data error)
+// ==============================================================================
+// METHOD UTILITY
+// ==============================================================================
+/// Membersihkan teks klaim dari bungkus struktur JSON jika terjadi kegagalan jaringan/sistem.
 String _cleanText(String text) {
   text = text.trim();
   if (text.startsWith('{') && text.endsWith('}')) {
     try {
       final data = jsonDecode(text);
       if (data is Map && data.containsKey('ai_analysis')) {
-        // Ambil kalimat pertama dari analisis sebagai fallback title
         final analysis = data['ai_analysis'] as String;
         final summary = analysis.split('.').first;
-        return summary.length > 100
-            ? '${summary.substring(0, 100)}...'
-            : summary;
+        return summary.length > 100 ? '${summary.substring(0, 100)}...' : summary;
       }
     } catch (_) {}
   }

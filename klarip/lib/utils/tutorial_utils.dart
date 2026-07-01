@@ -1,15 +1,29 @@
-import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:klarip/theme/app_theme.dart';
+// ==============================================================================
+// UTILS: PANDUAN API KEY GEMINI (TUTORIAL BOTTOM SHEET HELPER) - KLARIP
+// ==============================================================================
+// File ini menyediakan dialog bantuan [showApiKeyTutorialBottomSheet] berupa lembar 
+// modal bawah (Bottom Sheet) interaktif yang menuntun pengguna langkah demi langkah 
+// (5 langkah terpadu) untuk mendaftar dan menyalin API key Gemini secara gratis 
+// langsung dari konsol resmi Google AI Studio.
+//
+// POLA NAVIGASI EKSTERNAL:
+// Menggunakan paket `url_launcher` untuk membuka tautan eksternal browser:
+// `https://aistudio.google.com/api-keys` dengan mode `externalApplication`.
+// ==============================================================================
 
+import 'package:flutter/material.dart'; // Komponen UI Material
+import 'package:url_launcher/url_launcher.dart'; // Library untuk memicu browser eksternal membuka link
+import 'package:klarip/theme/app_theme.dart'; // Konstanta warna tema gelap aplikasi
+
+/// Memunculkan lembar tutorial bottom sheet berukuran 90% dari tinggi layar HP.
 void showApiKeyTutorialBottomSheet(BuildContext context) {
   showModalBottomSheet(
     context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
+    isScrollControlled: true, // Memungkinkan tinggi bottom sheet melampaui batas default (kustom)
+    backgroundColor: Colors.transparent, // Transparan agar efek rounded di pojok atas kontainer terlihat
     builder: (bottomSheetContext) {
       return Container(
-        height: MediaQuery.of(bottomSheetContext).size.height * 0.9,
+        height: MediaQuery.of(bottomSheetContext).size.height * 0.9, // 90% tinggi layar
         decoration: const BoxDecoration(
           color: Color(0xFF1E1E1E),
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -18,12 +32,12 @@ void showApiKeyTutorialBottomSheet(BuildContext context) {
           top: 24,
           left: 24,
           right: 24,
-          bottom: MediaQuery.of(bottomSheetContext).padding.bottom + 24,
+          bottom: MediaQuery.of(bottomSheetContext).padding.bottom + 24, // Proteksi area navigasi bawah iOS/Android
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Handle bar
+            // === HANDLE BAR (GARIS KECIL DI TENJOL ATAS BOTTOM SHEET) ===
             Center(
               child: Container(
                 width: 40,
@@ -35,6 +49,7 @@ void showApiKeyTutorialBottomSheet(BuildContext context) {
               ),
             ),
             const SizedBox(height: 24),
+            // Header Judul Bottom Sheet
             const Row(
               children: [
                 Icon(Icons.vpn_key, color: AppTheme.primarySeedColor, size: 28),
@@ -57,6 +72,8 @@ void showApiKeyTutorialBottomSheet(BuildContext context) {
               style: TextStyle(color: Colors.white70, fontSize: 14, height: 1.5),
             ),
             const SizedBox(height: 24),
+
+            // === DAFTAR LANGKAH TUTORIAL (SCROLLABLE) ===
             Expanded(
               child: SingleChildScrollView(
                 child: Column(
@@ -68,6 +85,7 @@ void showApiKeyTutorialBottomSheet(BuildContext context) {
                     _buildTutorialStep('4', 'Pada pop-up yang muncul, pilih project (atau biarkan default), lalu ketuk "Create key".', imagePath: 'assets/images/tutorial_step_2.png'),
                     _buildTutorialStep('5', 'Setelah selesai, salin (Copy) deretan teks panjang yang muncul pada "API key details".', imagePath: 'assets/images/tutorial_step_3.png'),
                     const SizedBox(height: 8),
+                    // Catatan akhir peringatan
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
@@ -93,11 +111,13 @@ void showApiKeyTutorialBottomSheet(BuildContext context) {
               ),
             ),
             const SizedBox(height: 24),
+
+            // === TOMBOL PENGALIH NAVIGASI KE AI STUDIO ===
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: () {
-                  Navigator.pop(bottomSheetContext);
+                  Navigator.pop(bottomSheetContext); // Tutup bottom sheet terlebih dahulu
                   launchUrl(
                     Uri.parse('https://aistudio.google.com/api-keys'),
                     mode: LaunchMode.externalApplication,
@@ -122,12 +142,16 @@ void showApiKeyTutorialBottomSheet(BuildContext context) {
   );
 }
 
+// ==============================================================================
+// HELPER METHOD: MENGGAMBAR SATU ITEM LANGKAH TUTORIAL (_buildTutorialStep)
+// ==============================================================================
 Widget _buildTutorialStep(String number, String text, {String? imagePath}) {
   return Padding(
     padding: const EdgeInsets.only(bottom: 16),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Lingkaran penanda angka langkah
         Container(
           width: 24,
           height: 24,
@@ -147,6 +171,7 @@ Widget _buildTutorialStep(String number, String text, {String? imagePath}) {
           ),
         ),
         const SizedBox(width: 12),
+        // Penjelasan langkah + gambar tangkapan layar panduan (jika disediakan)
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -178,3 +203,4 @@ Widget _buildTutorialStep(String number, String text, {String? imagePath}) {
     ),
   );
 }
+

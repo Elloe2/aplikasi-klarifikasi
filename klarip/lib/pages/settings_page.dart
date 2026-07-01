@@ -1,21 +1,44 @@
+// ==============================================================================
+// PENJELASAN UNTUK SIDANG: SETTINGS PAGE (HALAMAN PENGATURAN)
+// ==============================================================================
+// Bapak/Ibu Penguji, `settings_page.dart` ini adalah "Pusat Kendali" aplikasi.
+// Halaman ini tidak hanya untuk mengatur profil, tetapi juga mengontrol "Otak" AI.
+//
+// FITUR UNGGULAN YANG BISA DIJELASKAN SAAT SIDANG:
+// 1. **Manajemen API Key (Bring Your Own Key / BYOK)**: Mengapa pengguna harus 
+//    memasukkan API Key Gemini mereka sendiri? Karena layanan API berbayar/dibatasi.
+//    Dengan sistem BYOK, aplikasi ini menjadi 100% gratis selamanya untuk developer,
+//    karena beban kuota (rate-limit) ditanggung oleh masing-masing pengguna.
+// 2. **Custom Prompt Editor**: Kami membuat inovasi di mana pengguna (atau peneliti)
+//    bisa mengedit instruksi (Prompt) yang dikirim ke AI. Jika mereka ingin AI 
+//    menjawab dengan gaya bahasa santai atau lebih ketat, mereka cukup mengganti
+//    teks prompt di sini tanpa perlu mengubah source code aplikasi.
+// 3. **Statistik Penggunaan**: Aplikasi memantau dan mencatat secara lokal berapa 
+//    kali pengguna telah menanyakan hoax ke AI. Ini membantu memonitor pemakaian kuota.
+// 4. **Logout System**: Membersihkan seluruh data sesi agar aman saat berganti akun.
+// ==============================================================================
+
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
-import '../providers/auth_provider.dart';
-import '../providers/gemini_api_provider.dart';
-import '../providers/search_api_provider.dart';
-import '../providers/custom_prompt_provider.dart';
-import '../pages/auth/login_page.dart';
-import '../pages/profile/edit_profile_page.dart';
-import '../pages/profile/change_password_page.dart';
-import '../theme/app_theme.dart'; // Konsistensi warna dan gradient UI
-import '../utils/tutorial_utils.dart';
-/// Halaman pengaturan sederhana tanpa fitur pengguna.
-/// Hanya menampilkan informasi aplikasi dan sumber terpercaya.
+import 'package:flutter/services.dart'; // Untuk menyalin teks/API key ke clipboard HP
+import 'package:provider/provider.dart'; // State management Provider untuk memantau state dinamis
+import 'package:url_launcher/url_launcher.dart'; // Membuka link tutorial di browser eksternal
+import '../providers/auth_provider.dart'; // Provider sesi login pengguna
+import '../providers/gemini_api_provider.dart'; // Provider API key Gemini AI
+import '../providers/search_api_provider.dart'; // Provider API key Google Custom Search
+import '../providers/custom_prompt_provider.dart'; // Provider kustomisasi instruksi AI
+import '../pages/auth/login_page.dart'; // Halaman login saat pengguna keluar (logout)
+import '../pages/profile/edit_profile_page.dart'; // Halaman edit nama lengkap
+import '../pages/profile/change_password_page.dart'; // Halaman ganti kata sandi akun
+import '../theme/app_theme.dart'; // Konstanta warna dan gradient gelap aplikasi
+import '../utils/tutorial_utils.dart'; // Helper pop-up tutorial cara membuat API key
+
+/// Halaman pengaturan aplikasi Klarip.
+/// Ditampilkan sebagai Tab 3 (terakhir) pada HomeShell navigasi utama.
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key, this.onBackTap});
 
+  /// Aksi callback jika pengguna menekan tombol kembali (opsional).
+  /// Digunakan oleh HomeShell untuk memindahkan tab ke Tab Cari (index 0).
   final VoidCallback? onBackTap;
 
   @override
@@ -23,11 +46,17 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  
+  // ==========================================================================
+  // HELPER WIDGET: MEMBANGUN ITEM MENU (LIST TILE)
+  // ==========================================================================
+  /// Membuat baris menu standar dengan latar belakang gradient kartu yang elegan,
+  /// ikon di sebelah kiri, judul di tengah, deskripsi di bawah judul, dan panah di kanan.
   Widget _buildMenuTile({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
+    required IconData icon, // Ikon penanda menu
+    required String title, // Judul menu utama
+    required String subtitle, // Penjelasan singkat di bawah judul
+    required VoidCallback onTap, // Aksi ketika menu ditekan
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -70,18 +99,23 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  // ==========================================================================
+  // TAMPILAN UTAMA (BUILD METHOD)
+  // ==========================================================================
   @override
   Widget build(BuildContext context) {
+    // watch() mendengarkan data user yang sedang login saat ini di AuthProvider
     final user = context.watch<AuthProvider>().currentUser;
     final currentTheme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: Colors.transparent, // Agar background gradient terlihat
       appBar: AppBar(
         title: const Text('Pengaturan'),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        automaticallyImplyLeading: false,
+        automaticallyImplyLeading: false, // Hilangkan tombol back default dari Flutter
+        // Tampilkan tombol kembali custom jika callback onBackTap disediakan
         leading: widget.onBackTap != null
             ? IconButton(
                 icon: const Icon(Icons.arrow_back, color: Colors.white),
@@ -89,10 +123,11 @@ class _SettingsPageState extends State<SettingsPage> {
               )
             : null,
         actions: [
+          // === TOMBOL KELUAR (LOGOUT) ===
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.redAccent),
             onPressed: () async {
-              // Confirm logout
+              // 1. Tampilkan dialog konfirmasi keluar aplikasi
               final confirm = await showDialog<bool>(
                 context: context,
                 builder: (context) => AlertDialog(
@@ -124,11 +159,14 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               );
 
+              // 2. Jika dikonfirmasi keluar, bersihkan sesi login
               if (confirm == true) {
                 if (!context.mounted) return;
+                // Bersihkan sesi aktif dari memory dan SharedPreferences
                 await context.read<AuthProvider>().logout();
 
                 if (!context.mounted) return;
+                // Navigasi ke halaman Login dan bersihkan seluruh tumpukan halaman sebelumnya
                 Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(builder: (_) => const LoginPage()),
                   (route) => false,
@@ -143,7 +181,7 @@ class _SettingsPageState extends State<SettingsPage> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // User Profile Card
+            // === KARTU PROFIL PENGGUNA ===
             if (user != null) ...[
               Container(
                 width: double.infinity,
@@ -157,6 +195,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 child: Row(
                   children: [
+                    // Avatar inisial huruf pertama username
                     CircleAvatar(
                       radius: 30,
                       backgroundColor: AppTheme.primarySeedColor,
@@ -170,6 +209,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                     ),
                     const SizedBox(width: 16),
+                    // Informasi detail pengguna
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -188,18 +228,16 @@ class _SettingsPageState extends State<SettingsPage> {
                               color: Colors.white70,
                             ),
                           ),
-                          // (Education and Age Badge dihilangkan)
                         ],
                       ),
                     ),
-                    // Edit Icon
+                    // Tombol edit profil (untuk mengganti nama lengkap)
                     IconButton(
                       icon: const Icon(Icons.edit, color: Colors.white70),
                       onPressed: () => Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) =>
-                              EditProfilePage(user: user), // Pass user
+                          builder: (_) => EditProfilePage(user: user),
                         ),
                       ),
                     ),
@@ -208,7 +246,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               const SizedBox(height: 24),
 
-              // Account Settings Section
+              // === BAGIAN UTAMA: PENGATURAN AKUN ===
               Text(
                 'Akun',
                 style: currentTheme.textTheme.titleMedium?.copyWith(
@@ -225,8 +263,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) =>
-                          ChangePasswordPage(userId: user.id!), // Pass ID
+                      builder: (_) => ChangePasswordPage(userId: user.id!),
                     ),
                   );
                 },
@@ -234,22 +271,22 @@ class _SettingsPageState extends State<SettingsPage> {
               const SizedBox(height: 24),
             ],
 
-            // === GEMINI API SECTION ===
+            // === BAGIAN UTAMA: GEMINI API SECTION ===
             _buildGeminiApiSection(currentTheme),
 
             const SizedBox(height: 16),
 
-            // === CUSTOM PROMPT SECTION ===
+            // === BAGIAN UTAMA: CUSTOM PROMPT SECTION ===
             _buildCustomPromptSection(currentTheme),
 
             const SizedBox(height: 16),
 
-            // === SEARCH API SECTION ===
+            // === BAGIAN UTAMA: SEARCH API SECTION ===
             _buildSearchApiSection(currentTheme),
 
             const SizedBox(height: 16),
 
-            // App Info Card berisi metadata aplikasi
+            // Kartu Informasi Versi Aplikasi
             Container(
               decoration: BoxDecoration(
                 gradient: AppTheme.cardGradient,
@@ -272,7 +309,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
             const SizedBox(height: 16),
 
-            // Trusted Sources Info Card
+            // Kartu Daftar Sumber Berita Terpercaya
             const _TrustedSourcesCard(),
           ],
         ),
@@ -280,7 +317,11 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // === GEMINI API SECTION BUILDER ===
+  // ==========================================================================
+  // WIDGET: GEMINI API SECTION
+  // ==========================================================================
+  /// Membangun antarmuka manajemen API key Google Gemini.
+  /// Memantau kegagalan key dan statistik penggunaan API key tersebut.
   Widget _buildGeminiApiSection(ThemeData currentTheme) {
     return Consumer<GeminiApiProvider>(
       builder: (context, geminiProvider, _) {
@@ -296,7 +337,9 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             const SizedBox(height: 12),
 
-            // === ERROR BANNER ===
+            // === SPANDUK ERROR (API KEY EXPIRED / LIMIT KUOTA) ===
+            // Jika provider mendeteksi status isKeyExpired = true (misal: setelah request gagal),
+            // tampilkan banner merah peringatan beserta keterangan error persis dari API.
             if (geminiProvider.isKeyExpired) ...[
               Container(
                 padding: const EdgeInsets.all(14),
@@ -345,7 +388,7 @@ class _SettingsPageState extends State<SettingsPage> {
               const SizedBox(height: 12),
             ],
 
-            // === API KEY CARD ===
+            // === KARTU GANTI API KEY ===
             Container(
               decoration: BoxDecoration(
                 gradient: AppTheme.cardGradient,
@@ -388,6 +431,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Tampilkan mask key (disensor sebagian)
                       Text(
                         geminiProvider.maskedApiKey,
                         style: const TextStyle(
@@ -395,6 +439,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           fontSize: 13,
                         ),
                       ),
+                      // Tampilkan label penanda jenis API key yang sedang aktif
                       if (geminiProvider.isUsingCustomKey)
                         const Text(
                           'Menggunakan API key custom',
@@ -421,7 +466,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
             const SizedBox(height: 12),
 
-            // === USAGE STATISTICS CARD ===
+            // === KARTU STATISTIK PENGGUNAAN GEMINI ===
             Container(
               decoration: BoxDecoration(
                 gradient: AppTheme.cardGradient,
@@ -437,9 +482,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: AppTheme.primarySeedColor.withValues(
-                            alpha: 0.1,
-                          ),
+                          color: AppTheme.primarySeedColor.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(
@@ -459,10 +502,9 @@ class _SettingsPageState extends State<SettingsPage> {
                           ),
                         ),
                       ),
-                      // Reset button
+                      // Tombol setel ulang statistik ke 0
                       IconButton(
-                        onPressed: () =>
-                            _showResetStatsDialog(context, geminiProvider),
+                        onPressed: () => _showResetStatsDialog(context, geminiProvider),
                         icon: const Icon(
                           Icons.refresh,
                           color: Colors.white30,
@@ -474,7 +516,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Stats Grid
+                  // Informasi grid pemakaian Total vs Harian
                   Row(
                     children: [
                       Expanded(
@@ -498,7 +540,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   const SizedBox(height: 12),
 
-                  // Last Used
+                  // Keterangan waktu pemakaian terakhir
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -534,7 +576,11 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // === CUSTOM PROMPT SECTION BUILDER ===
+  // ==========================================================================
+  // WIDGET: CUSTOM PROMPT SECTION
+  // ==========================================================================
+  /// Membangun antarmuka pengelolaan Custom Prompt AI.
+  /// Menampilkan status kustomisasi dan navigasi ke editor instruksi prompt.
   Widget _buildCustomPromptSection(ThemeData currentTheme) {
     return Consumer<CustomPromptProvider>(
       builder: (context, promptProvider, _) {
@@ -550,7 +596,6 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             const SizedBox(height: 12),
 
-            // === CUSTOM PROMPT CARD ===
             Container(
               decoration: BoxDecoration(
                 gradient: AppTheme.cardGradient,
@@ -589,9 +634,9 @@ class _SettingsPageState extends State<SettingsPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      const Text(
                         'Kustomisasi perintah analisis Gemini AI',
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Colors.white70,
                           fontSize: 13,
                         ),
@@ -627,23 +672,19 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // === DIALOG EDITOR CUSTOM PROMPT ===
+  // METODE: DIALOG EDIT PROMPT INSTRUKSI ANALISIS AI
+  // ==========================================================================
+  /// Menampilkan pop-up dialog berisi formulir sunting instruksi prompt AI.
+  /// Pengguna bisa mengubah alur kriteria analisis data klaim di sini.
   void _showCustomPromptEditor(
     BuildContext context,
     CustomPromptProvider provider,
   ) {
-    final mainController = TextEditingController(
-      text: provider.mainInstructions,
-    );
-    final didukungController = TextEditingController(
-      text: provider.verdictDidukung,
-    );
-    final tidakDidukungController = TextEditingController(
-      text: provider.verdictTidakDidukung,
-    );
-    final verifikasiController = TextEditingController(
-      text: provider.verdictVerifikasi,
-    );
+    // Controller untuk formulir agar nilainya sinkron saat diketik
+    final mainController = TextEditingController(text: provider.mainInstructions);
+    final didukungController = TextEditingController(text: provider.verdictDidukung);
+    final tidakDidukungController = TextEditingController(text: provider.verdictTidakDidukung);
+    final verifikasiController = TextEditingController(text: provider.verdictVerifikasi);
 
     showDialog(
       context: context,
@@ -677,7 +718,7 @@ class _SettingsPageState extends State<SettingsPage> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Info box
+                // Info Box peringatan titik akhir
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -711,7 +752,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 const SizedBox(height: 20),
 
-                // === SECTION 1: INSTRUKSI UTAMA (Poin 1-3) ===
+                // === FORM 1: INSTRUKSI UTAMA ===
                 const Text(
                   'Prompt AI :',
                   style: TextStyle(
@@ -736,7 +777,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 const SizedBox(height: 24),
 
-                // === SECTION 2: VERDICT (Poin 4) ===
+                // === FORM 2: PENJELASAN VERDICT (NAMA KUNCI TERKUNCI) ===
                 Row(
                   children: [
                     const Icon(Icons.lock, color: Colors.white38, size: 14),
@@ -769,7 +810,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 const SizedBox(height: 12),
 
-                // DIDUKUNG_DATA
+                // DIDUKUNG_DATA Field
                 _buildVerdictField(
                   label: 'DIDUKUNG_DATA',
                   color: const Color(0xFF10B981),
@@ -778,7 +819,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 const SizedBox(height: 12),
 
-                // TIDAK_DIDUKUNG_DATA
+                // TIDAK_DIDUKUNG_DATA Field
                 _buildVerdictField(
                   label: 'TIDAK_DIDUKUNG_DATA',
                   color: const Color(0xFFEF4444),
@@ -787,7 +828,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 const SizedBox(height: 12),
 
-                // MEMERLUKAN_VERIFIKASI
+                // MEMERLUKAN_VERIFIKASI Field
                 _buildVerdictField(
                   label: 'MEMERLUKAN_VERIFIKASI',
                   color: const Color(0xFFF59E0B),
@@ -796,7 +837,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 const SizedBox(height: 16),
 
-                // Tips
+                // Petunjuk singkat
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
@@ -836,20 +877,16 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         ),
         actions: [
-          // Reset button
+          // Tombol Reset ke Default
           if (provider.isUsingCustom)
             TextButton(
               onPressed: () async {
                 final messenger = ScaffoldMessenger.of(context);
                 await provider.resetToDefault();
                 if (dialogContext.mounted) Navigator.pop(dialogContext);
-                if (mounted) {
-                  messenger.showSnackBar(
-                    const SnackBar(
-                      content: Text('Instruksi dikembalikan ke default'),
-                    ),
-                  );
-                }
+                messenger.showSnackBar(
+                  const SnackBar(content: Text('Instruksi dikembalikan ke default')),
+                );
               },
               child: const Text(
                 'Reset Default',
@@ -871,12 +908,10 @@ class _SettingsPageState extends State<SettingsPage> {
             onPressed: () async {
               final messenger = ScaffoldMessenger.of(context);
 
-              // Validasi
+              // Validasi agar formulir tidak kosong saat disubmit
               if (mainController.text.trim().isEmpty) {
                 messenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('Instruksi utama tidak boleh kosong'),
-                  ),
+                  const SnackBar(content: Text('Instruksi utama tidak boleh kosong')),
                 );
                 return;
               }
@@ -884,13 +919,12 @@ class _SettingsPageState extends State<SettingsPage> {
                   tidakDidukungController.text.trim().isEmpty ||
                   verifikasiController.text.trim().isEmpty) {
                 messenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('Deskripsi verdict tidak boleh kosong'),
-                  ),
+                  const SnackBar(content: Text('Deskripsi verdict tidak boleh kosong')),
                 );
                 return;
               }
 
+              // Simpan perubahan ke penyimpanan SharedPreferences
               await provider.updateInstructions(
                 mainInstructions: mainController.text,
                 verdictDidukung: didukungController.text,
@@ -898,13 +932,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 verdictVerifikasi: verifikasiController.text,
               );
               if (dialogContext.mounted) Navigator.pop(dialogContext);
-              if (mounted) {
-                messenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('Instruksi analisis berhasil diperbarui! ✨'),
-                  ),
-                );
-              }
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Instruksi analisis berhasil diperbarui! ✨')),
+              );
             },
             child: const Text('Simpan'),
           ),
@@ -913,7 +943,10 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // === VERDICT FIELD WIDGET ===
+  // ==========================================================================
+  // HELPER WIDGET: CARD FORMULIR VERDICT PROMPT
+  // ==========================================================================
+  /// Membuat baris input kustom ter-styling khusus untuk deskripsi verdict prompt
   Widget _buildVerdictField({
     required String label,
     required Color color,
@@ -930,7 +963,6 @@ class _SettingsPageState extends State<SettingsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Locked verdict name
           Row(
             children: [
               Icon(Icons.lock, color: color.withValues(alpha: 0.6), size: 14),
@@ -954,7 +986,6 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
           const SizedBox(height: 8),
-          // Editable description
           TextField(
             controller: controller,
             maxLines: 2,
@@ -970,7 +1001,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // === SHARED INPUT DECORATION ===
+  /// Desain input border textfield kustom khusus tema gelap aplikasi
   InputDecoration _promptInputDecoration({required String hint}) {
     return InputDecoration(
       hintText: hint,
@@ -994,7 +1025,10 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // === STAT ITEM WIDGET ===
+  // ==========================================================================
+  // HELPER WIDGET: CARD ITEM STATISTIK (_buildStatItem)
+  // ==========================================================================
+  /// Membangun visual layout grid stat item berbentuk box kecil.
   Widget _buildStatItem({
     required IconData icon,
     required String label,
@@ -1043,7 +1077,10 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // === DIALOG GANTI API KEY ===
+  // ==========================================================================
+  // METODE: DIALOG GANTI API KEY GEMINI AI
+  // ==========================================================================
+  /// Memunculkan popup untuk mengedit teks API key dinamis dari Google AI Studio.
   void _showChangeApiKeyDialog(
     BuildContext context,
     GeminiApiProvider provider,
@@ -1070,7 +1107,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               const SizedBox(height: 12),
 
-              // Current key info
+              // Menampilkan API key yang sedang aktif disensor
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
@@ -1095,7 +1132,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               const SizedBox(height: 16),
 
-              // Input field
+              // Kolom input text API key
               TextField(
                 controller: controller,
                 style: const TextStyle(color: Colors.white, fontSize: 14),
@@ -1111,6 +1148,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   suffixIcon: IconButton(
                     icon: const Icon(Icons.paste, color: Colors.white38),
                     onPressed: () async {
+                      // Ambil teks yang sedang disalin di clipboard HP pengguna
                       final data = await Clipboard.getData('text/plain');
                       if (data?.text != null) {
                         controller.text = data!.text!;
@@ -1123,7 +1161,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
               const SizedBox(height: 12),
 
-              // Info box and Tutorial Button
+              // Kotak panduan membuat API key gratis beserta tautannya
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -1194,20 +1232,18 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         ),
         actions: [
-          // Reset to default button
+          // Tombol Reset ke Default API key bawaan aplikasi
           if (provider.isUsingCustomKey)
             TextButton(
               onPressed: () async {
                 final messenger = ScaffoldMessenger.of(context);
                 await provider.resetToDefaultKey();
                 if (dialogContext.mounted) Navigator.pop(dialogContext);
-                if (mounted) {
-                  messenger.showSnackBar(
-                    const SnackBar(
-                      content: Text('API key dikembalikan ke default'),
-                    ),
-                  );
-                }
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text('API key dikembalikan ke default'),
+                  ),
+                );
               },
               child: const Text(
                 'Reset Default',
@@ -1236,15 +1272,14 @@ class _SettingsPageState extends State<SettingsPage> {
                 return;
               }
 
+              // Simpan key baru ke SQLite / SharedPreferences
               await provider.updateApiKey(newKey);
               if (dialogContext.mounted) Navigator.pop(dialogContext);
-              if (mounted) {
-                messenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('API key berhasil diperbarui! 🎉'),
-                  ),
-                );
-              }
+              messenger.showSnackBar(
+                const SnackBar(
+                  content: Text('API key berhasil diperbarui! 🎉'),
+                ),
+              );
             },
             child: const Text('Simpan'),
           ),
@@ -1253,12 +1288,14 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // === TUTORIAL BOTTOM SHEET ===
+  // === METODE: MENAMPILKAN TUTORIAL BOTTOM SHEET ===
   void _showApiKeyTutorialBottomSheet(BuildContext context) {
     showApiKeyTutorialBottomSheet(context);
   }
 
-  // === DIALOG RESET STATISTIK ===
+  // ==========================================================================
+  // METODE: DIALOG PENYETELAN ULANG (RESET) STATISTIK PENGGUNAAN GEMINI
+  // ==========================================================================
   void _showResetStatsDialog(BuildContext context, GeminiApiProvider provider) {
     showDialog(
       context: context,
@@ -1283,11 +1320,9 @@ class _SettingsPageState extends State<SettingsPage> {
               final messenger = ScaffoldMessenger.of(context);
               await provider.resetUsageStats();
               if (dialogContext.mounted) Navigator.pop(dialogContext);
-              if (mounted) {
-                messenger.showSnackBar(
-                  const SnackBar(content: Text('Statistik berhasil di-reset')),
-                );
-              }
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Statistik berhasil di-reset')),
+              );
             },
             child: const Text('Reset'),
           ),
@@ -1296,7 +1331,11 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // === SEARCH API SECTION BUILDER ===
+  // ==========================================================================
+  // WIDGET: SEARCH API SECTION
+  // ==========================================================================
+  /// Membangun antarmuka monitoring Google Custom Search.
+  /// API key dan CX dikunci secara default karena telah dikonfigurasi khusus.
   Widget _buildSearchApiSection(ThemeData currentTheme) {
     return Consumer<SearchApiProvider>(
       builder: (context, cseProvider, _) {
@@ -1312,7 +1351,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             const SizedBox(height: 12),
 
-            // === API KEY INFO CARD (READ-ONLY — tidak dapat diubah) ===
+            // === SEARCH KEY CARD (STATUS LOCKED / READ-ONLY) ===
             Container(
               decoration: BoxDecoration(
                 gradient: AppTheme.cardGradient,
@@ -1392,7 +1431,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
             const SizedBox(height: 12),
 
-            // === USAGE STATISTICS CARD ===
+            // === KARTU MONITORING STATISTIK PENGGUNAAN CSE ===
             Container(
               decoration: BoxDecoration(
                 gradient: AppTheme.cardGradient,
@@ -1429,8 +1468,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         ),
                       ),
                       IconButton(
-                        onPressed: () =>
-                            _showResetCseStatsDialog(context, cseProvider),
+                        onPressed: () => _showResetCseStatsDialog(context, cseProvider),
                         icon: const Icon(
                           Icons.refresh,
                           color: Colors.white30,
@@ -1500,9 +1538,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // _showChangeCseApiKeyDialog dihapus karena Search API key tidak dapat diubah.
-
-  // === DIALOG RESET STATISTIK CSE ===
+  // === METODE: DIALOG RESET STATISTIK PENGGUNAAN GOOGLE CSE ===
   void _showResetCseStatsDialog(
     BuildContext context,
     SearchApiProvider provider,
@@ -1530,13 +1566,11 @@ class _SettingsPageState extends State<SettingsPage> {
               final messenger = ScaffoldMessenger.of(context);
               await provider.resetUsageStats();
               if (dialogContext.mounted) Navigator.pop(dialogContext);
-              if (mounted) {
-                messenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('Statistik Search berhasil di-reset'),
-                  ),
-                );
-              }
+              messenger.showSnackBar(
+                const SnackBar(
+                  content: Text('Statistik Search berhasil di-reset'),
+                ),
+              );
             },
             child: const Text('Reset'),
           ),
@@ -1546,7 +1580,10 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 }
 
-/// Card yang menampilkan informasi sumber-sumber terpercaya
+// ==============================================================================
+// SUB-WIDGET: KARTU SUMBER BERITA TERPERCAYA INDONESIA (_TrustedSourcesCard)
+// ==============================================================================
+/// Menampilkan daftar whitelist media nasional, bisnis, fact-checker, dan instansi resmi.
 class _TrustedSourcesCard extends StatefulWidget {
   const _TrustedSourcesCard();
 
@@ -1555,8 +1592,9 @@ class _TrustedSourcesCard extends StatefulWidget {
 }
 
 class _TrustedSourcesCardState extends State<_TrustedSourcesCard> {
-  bool _isExpanded = false;
+  bool _isExpanded = false; // State: Apakah daftar kategori sedang terbuka?
 
+  // Whitelist domain sumber terpercaya di Indonesia
   final Map<String, List<String>> _trustedSources = {
     '📰 Media Nasional': [
       'kompas.com',
@@ -1641,7 +1679,7 @@ class _TrustedSourcesCardState extends State<_TrustedSourcesCard> {
       ),
       child: Column(
         children: [
-          // Header
+          // Header Kartu
           InkWell(
             onTap: () => setState(() => _isExpanded = !_isExpanded),
             borderRadius: BorderRadius.circular(20),
@@ -1694,7 +1732,7 @@ class _TrustedSourcesCardState extends State<_TrustedSourcesCard> {
             ),
           ),
 
-          // Expandable Content
+          // Konten list kategori yang bisa di-expand (membuka/menutup daftar)
           if (_isExpanded) ...[
             const Divider(color: Colors.white12, height: 1),
             Padding(
@@ -1733,10 +1771,9 @@ class _TrustedSourcesCardState extends State<_TrustedSourcesCard> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Categories
+                  // Kategori berita & website instansi
                   ..._trustedSources.entries.map(
-                    (entry) =>
-                        _buildCategory(title: entry.key, sources: entry.value),
+                    (entry) => _buildCategory(title: entry.key, sources: entry.value),
                   ),
                 ],
               ),
@@ -1747,6 +1784,7 @@ class _TrustedSourcesCardState extends State<_TrustedSourcesCard> {
     );
   }
 
+  /// Membangun baris kategori beserta chip/tag domain websitenya
   Widget _buildCategory({
     required String title,
     required List<String> sources,

@@ -1,25 +1,56 @@
-import 'dart:convert';
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../models/gemini_analysis.dart';
-import '../models/saved_analysis.dart';
-import '../providers/saved_analysis_provider.dart';
-import '../theme/app_theme.dart';
-import '../models/search_result.dart';
-import 'gemini_logo.dart';
+// ==============================================================================
+// WIDGET: GEMINI CHATBOT (AI FACT-CHECKER DISPLAY) - KLARIP
+// ==============================================================================
+// File ini bertanggung jawab menampilkan hasil analisis kebenaran klaim
+// yang dihasilkan oleh kecerdasan buatan (Gemini AI) berdasarkan artikel berita
+// pendukung yang dikumpulkan oleh Google Custom Search Engine (CSE).
+//
+// ALUR LOGIKA UI:
+// Widget ini mengontrol visualisasi 4 status (state) yang berbeda:
+// 1. **isLoading (Loading State)**: Spinner berputar saat API mendownload data.
+// 2. **analysis == null (Empty State)**: Panduan awal sebelum pencarian dilakukan.
+// 3. **analysis.success == false (Error State)**: Banner kegagalan API/koneksi.
+// 4. **Success State**: Tampilan terstruktur berisi verdict (DIDUKUNG / TIDAK
+//    DIDUKUNG / VERIFIKASI), ringkasan penjelasan, analisis mendalam, dan tombol
+//    menyimpan ke SQLite.
+//
+// FORMAT PENYIMPANAN DATA (STRUCTURED JSON):
+// Saat tombol "Simpan ke Koleksi" ditekan, widget ini mengemas:
+// - `analysis.analysis` (teks analisis mendalam AI)
+// - `results` (daftar tautan berita mentah dari Google CSE)
+// Menjadi satu kesatuan teks ter-serialize JSON string sebelum disimpan ke
+// kolom tabel SQLite `analysis`. Ini disebut pola *EAV (Entity-Attribute-Value) Hybrid*.
+// ==============================================================================
 
-/// Widget untuk menampilkan analisis Gemini AI
-/// Meng-handle berbagai state: loading, kosong, error, dan sukses.
+import 'dart:convert'; // Untuk melakukan serialisasi/deserialisasi objek ke JSON string
+import 'package:flutter/material.dart'; // Paket komponen UI Material Flutter
+import 'package:provider/provider.dart'; // State management Provider untuk berinteraksi dengan database
+import '../models/gemini_analysis.dart'; // Model data analisis hasil respon Gemini AI
+import '../models/saved_analysis.dart'; // Model data untuk record tabel SQLite riwayat
+import '../providers/saved_analysis_provider.dart'; // Provider pengontrol CRUD SQLite riwayat
+import '../theme/app_theme.dart'; // Konsistensi pewarnaan tema gelap Klarip
+import '../models/search_result.dart'; // Model artikel berita Google CSE
+import 'gemini_logo.dart'; // Widget kustom untuk menggambar animasi logo Gemini AI
+
+/// Widget kustom untuk menampilkan wadah analisis Gemini AI.
+/// Bersifat StatelessWidget karena seluruh state datanya di-supply dari luar (SearchPage).
 class GeminiChatbot extends StatelessWidget {
+  /// Objek hasil analisis kebenaran dari Gemini AI (null jika belum mencari)
   final GeminiAnalysis? analysis;
-  final List<SearchResult>? results; // Add results parameter
+
+  /// Daftar berita artikel dari Google CSE yang dijadikan rujukan/sumber rujukan
+  final List<SearchResult>? results;
+
+  /// Penanda status sedang menanti respon API
   final bool isLoading;
+
+  /// Callback fungsi untuk mencoba ulang request pencarian jika gagal
   final VoidCallback? onRetry;
 
   const GeminiChatbot({
     super.key,
     this.analysis,
-    this.results, // Accept results
+    this.results,
     this.isLoading = false,
     this.onRetry,
   });
@@ -28,17 +59,17 @@ class GeminiChatbot extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       elevation: 0,
-      color: AppTheme.surfaceElevated,
+      color: AppTheme.surfaceElevated, // Warna latar abu gelap dari tema
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header dengan icon Gemini
+            // === KOP HEADER: LOGO & JUDUL ===
             Row(
               children: [
-                const GeminiLogo(size: 32),
+                const GeminiLogo(size: 32), // Logo gemerlap khas Gemini AI
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -46,8 +77,7 @@ class GeminiChatbot extends StatelessWidget {
                     children: [
                       Text(
                         'AI Fact-Checker',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.w600,
                               color: Colors.white,
                             ),
@@ -61,6 +91,7 @@ class GeminiChatbot extends StatelessWidget {
                     ],
                   ),
                 ),
+                // Tombol refresh/coba lagi hanya muncul jika terjadi kegagalan sistem
                 if (onRetry != null && analysis != null && !analysis!.success)
                   IconButton(
                     onPressed: onRetry,
@@ -74,15 +105,15 @@ class GeminiChatbot extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            // Content berdasarkan status
+            // === PERCABANGAN KONDISI STATE UI ===
             if (isLoading) ...[
-              _buildLoadingState(context),
+              _buildLoadingState(context), // Status 1: Loading
             ] else if (analysis == null) ...[
-              _buildEmptyState(context),
+              _buildEmptyState(context), // Status 2: Kosong
             ] else if (!analysis!.success) ...[
-              _buildErrorState(context),
+              _buildErrorState(context), // Status 3: Error
             ] else ...[
-              _buildAnalysisResult(context),
+              _buildAnalysisResult(context), // Status 4: Sukses Analisis
             ],
           ],
         ),
@@ -90,43 +121,43 @@ class GeminiChatbot extends StatelessWidget {
     );
   }
 
-  /// Tampilan saat Gemini masih memproses analisis klaim
+  // ==========================================================================
+  // VIEW STATUS 1: SEDANG LOADING (_buildLoadingState)
+  // ==========================================================================
+  /// Tampilan saat Gemini masih memproses analisis klaim di latar belakang.
   Widget _buildLoadingState(BuildContext context) {
     return Column(
       children: [
         Row(
           children: [
-            SizedBox(
+            const SizedBox(
               width: 16,
               height: 16,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  AppTheme.primarySeedColor,
-                ),
+                valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primarySeedColor),
               ),
             ),
             const SizedBox(width: 12),
             Text(
               'Menganalisis klaim...',
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: AppTheme.subduedGray),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.subduedGray),
             ),
           ],
         ),
         const SizedBox(height: 8),
         Text(
           'AI sedang memeriksa kebenaran klaim ini',
-          style: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(color: AppTheme.mutedGray),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.mutedGray),
         ),
       ],
     );
   }
 
-  /// Tampilan default ketika belum ada analisis yang bisa ditampilkan
+  // ==========================================================================
+  // VIEW STATUS 2: BELUM ADA PENCARIAN (_buildEmptyState)
+  // ==========================================================================
+  /// Tampilan awal pemandu pengguna sebelum mengetik kata kunci.
   Widget _buildEmptyState(BuildContext context) {
     return Column(
       children: [
@@ -134,22 +165,21 @@ class GeminiChatbot extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           'AI Fact-Checker siap menganalisis',
-          style: Theme.of(
-            context,
-          ).textTheme.bodyMedium?.copyWith(color: AppTheme.subduedGray),
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.subduedGray),
         ),
         const SizedBox(height: 4),
         Text(
           'Masukkan klaim untuk mendapatkan analisis AI',
-          style: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(color: AppTheme.mutedGray),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.mutedGray),
         ),
       ],
     );
   }
 
-  /// Tampilan error ketika analisis gagal atau diblokir
+  // ==========================================================================
+  // VIEW STATUS 3: GAGAL REQUEST API (_buildErrorState)
+  // ==========================================================================
+  /// Tampilan peringatan ketika Gemini mengembalikan respons gagal.
   Widget _buildErrorState(BuildContext context) {
     return Column(
       children: [
@@ -168,28 +198,28 @@ class GeminiChatbot extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           analysis?.error ?? 'Terjadi kesalahan saat menganalisis',
-          style: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(color: AppTheme.mutedGray),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.mutedGray),
         ),
       ],
     );
   }
 
-  /// Tampilan utama ketika analisis sukses dan siap dibaca
+  // ==========================================================================
+  // VIEW STATUS 4: SUKSES MENAMPILKAN HASIL (_buildAnalysisResult)
+  // ==========================================================================
+  /// Membangun layout visual hasil analisis kebenaran klaim (Verdict & Ringkasan).
   Widget _buildAnalysisResult(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Verdict and Confidence Badges
+        // === BARIS BADGE HASIL VERDICT ===
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // Verdict Badge
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: analysis!.verdictColor.withValues(alpha: 0.2),
+                color: analysis!.verdictColor.withValues(alpha: 0.2), // Latar transparan tipis sesuai warna verdict
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: analysis!.verdictColor.withValues(alpha: 0.5),
@@ -206,7 +236,7 @@ class GeminiChatbot extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    analysis!.verdictDisplayText,
+                    analysis!.verdictDisplayText, // "DIDUKUNG DATA", "TIDAK DIDUKUNG DATA", atau "MEMERLUKAN VERIFIKASI"
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
                       color: analysis!.verdictColor,
                       fontWeight: FontWeight.w700,
@@ -220,7 +250,7 @@ class GeminiChatbot extends StatelessWidget {
         ),
         const SizedBox(height: 20),
 
-        // Explanation
+        // === RINGKASAN PENJELASAN ===
         Text(
           'Penjelasan:',
           style: Theme.of(context).textTheme.labelMedium?.copyWith(
@@ -238,7 +268,7 @@ class GeminiChatbot extends StatelessWidget {
         ),
         const SizedBox(height: 16),
 
-        // Analysis (baru)
+        // === ANALISIS REFERENSI DETIL (JIKA ADA) ===
         if (analysis!.analysis.isNotEmpty &&
             analysis!.analysis != 'Tidak ada analisis tersedia') ...[
           Text(
@@ -270,20 +300,17 @@ class GeminiChatbot extends StatelessWidget {
           const SizedBox(height: 16),
         ],
 
-        // === ACTION BUTTON ===
-        // Tombol simpan besar di bagian bawah agar mudah dijangkau
+        // === TOMBOL UTAMA SIMPAN DATA (CRUD CREATE) ===
         const SizedBox(height: 24),
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
-            onPressed: () => _showSaveDialog(context),
+            onPressed: () => _showSaveDialog(context), // Tampilkan popup form catatan saat diklik
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primarySeedColor,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               elevation: 4,
             ),
             icon: const Icon(Icons.bookmark_add),
@@ -297,6 +324,11 @@ class GeminiChatbot extends StatelessWidget {
     );
   }
 
+  // ==========================================================================
+  // METODE: FORM CATATAN TAMBAHAN RIWAYAT
+  // ==========================================================================
+  /// Dialog pop-up interaktif untuk mengisi catatan pribadi (userNote)
+  /// sebelum akhirnya disimpan permanen di database SQLite lokal.
   void _showSaveDialog(BuildContext context) {
     final noteController = TextEditingController();
     showDialog(
@@ -325,9 +357,7 @@ class GeminiChatbot extends StatelessWidget {
                 hintStyle: const TextStyle(color: Colors.white30),
                 filled: true,
                 fillColor: Colors.black26,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
           ],
@@ -339,11 +369,9 @@ class GeminiChatbot extends StatelessWidget {
           ),
           ElevatedButton(
             onPressed: () {
-              // Import providers dynamically to avoid cyclic imports if possible,
-              // or ensure generic implementation.
-              // Utilizing a callback approach or direct provider access if safe.
+              // Pemicu eksekusi penyimpanan fisik
               _saveAnalysis(context, noteController.text);
-              Navigator.pop(context);
+              Navigator.pop(context); // Tutup dialog setelah berhasil diproses
             },
             child: const Text('Simpan'),
           ),
@@ -352,42 +380,40 @@ class GeminiChatbot extends StatelessWidget {
     );
   }
 
+  // ==========================================================================
+  // METODE: PROSES SIMPAN PERMANEN DATABASE LOKAL
+  // ==========================================================================
+  /// Menyusun objek [SavedAnalysis] terintegrasi.
+  /// Memadukan hasil analisis AI dan kumpulan artikel referensi menjadi string JSON tunggal.
   void _saveAnalysis(BuildContext context, String note) {
     try {
-      // Debug: Log how many search results we're saving
-      debugPrint('=== SAVING ANALYSIS ===');
-      debugPrint('Claim: ${analysis!.claim}');
-      debugPrint('Results count: ${results?.length ?? 0}');
-      if (results != null) {
-        for (var r in results!) {
-          debugPrint('  - ${r.title} (${r.link})');
-        }
-      }
+      debugPrint('=== MENYIMPAN ANALISIS ===');
+      debugPrint('Klaim: ${analysis!.claim}');
+      debugPrint('Jumlah Artikel CSE: ${results?.length ?? 0}');
 
-      // Create structured JSON to store both AI analysis and search results
+      // 1. Susun map data terstruktur (Structured JSON)
       final Map<String, dynamic> structuredData = {
         'ai_analysis': analysis!.analysis,
         'search_results': results?.map((r) => r.toMap()).toList() ?? [],
       };
 
-      debugPrint(
-        'Structured JSON search_results count: ${(structuredData['search_results'] as List).length}',
-      );
-
+      // 2. Buat objek penampung model riwayat
       final savedAnalysis = SavedAnalysis(
         title: 'Analisis Fakta: ${analysis!.claim}',
         claim: analysis!.claim,
         verdict: analysis!.verdict,
         explanation: analysis!.explanation,
         confidence: analysis!.confidence,
-        userNote: note,
+        userNote: note, // Catatan pribadi hasil input manual pengguna
         sourceUrl: analysis!.sources,
-        analysis: jsonEncode(structuredData), // Store as JSON string
-        savedAt: DateTime.now(),
+        analysis: jsonEncode(structuredData), // Encode Map menjadi String tunggal untuk disimpan di SQLite
+        savedAt: DateTime.now(), // Waktu penyimpanan lokal saat ini
       );
 
+      // 3. Masukkan ke database lokal melalui provider SavedAnalysisProvider
       context.read<SavedAnalysisProvider>().addAnalysis(savedAnalysis);
 
+      // 4. Berikan visual snackbar konfirmasi sukses ke pengguna
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -398,7 +424,8 @@ class GeminiChatbot extends StatelessWidget {
         );
       }
     } catch (e) {
-      debugPrint('Save failed: $e');
+      debugPrint('Gagal menyimpan riwayat ke SQLite: $e');
     }
   }
 }
+

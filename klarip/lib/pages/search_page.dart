@@ -1,45 +1,66 @@
-// === KLARIP SEARCH PAGE ===
-// Halaman utama aplikasi pencarian fakta dengan fitur-fitur canggih:
-// - Scroll behavior untuk suggestion panel
-// - Rate limiting dengan cooldown system
-// - Animasi staggered untuk hasil pencarian
-// - Layout horizontal untuk link dan credibility badge
-// - Error handling dan loading states yang komprehensif
+// ==============================================================================
+// PENJELASAN UNTUK SIDANG: SEARCH PAGE (HALAMAN PENCARIAN & RAG CONTROLLER)
+// ==============================================================================
+// Bapak/Ibu Penguji, `search_page.dart` ini adalah "Jantung" dari UI (User Interface) aplikasi.
+// Di sinilah pengguna berinteraksi langsung untuk memverifikasi klaim hoax.
+//
+// ALUR KERJA (RAG - Retrieval-Augmented Generation) DI SISI UI:
+// 1. Pengguna mengetikkan klaim (contoh: "Bumi itu datar") di TextField.
+// 2. UI mengirim perintah ke `SearchApi` untuk mencari artikel referensi (Retrieval).
+// 3. UI menampilkan efek Loading (Kartu Shimmer) selagi menunggu.
+// 4. Setelah AI selesai merangkum (Generation), UI menampilkan hasilnya
+//    dalam bentuk Chatbot interaktif dan daftar sumber referensi.
+//
+// FITUR UNGGULAN YANG BISA DIJELASKAN SAAT SIDANG:
+// - Cooldown System (Rate Limiting): Sistem paksa jeda 5 detik setiap kali
+//   pencarian selesai. Tujuannya? Mencegah pengguna melakukan 'Spamming'
+//   yang bisa membuat kuota API Key Google cepat habis.
+// - Fallback State (Sistem Cadangan): Jika Google Search mati/error, aplikasi
+//   tidak akan crash (tutup paksa). Sistem akan otomatis memakai "Fallback",
+//   yaitu menyuruh Gemini AI menjawab sebisanya walau tanpa artikel referensi.
+// - Dynamic Error Handling: Jika terdeteksi API Key (Gemini/Google) mati atau habis,
+//   akan langsung muncul Pop-up (Dialog) yang mengarahkan user ke halaman Pengaturan.
+// ==============================================================================
 
-import 'dart:async';
+import 'dart:async'; // Untuk mengelola operasi Timer cooldown harian
+import 'package:flutter/material.dart'; // Framework UI Material
+import 'package:flutter/services.dart'; // Untuk menyalin teks ke clipboard HP
+import 'package:provider/provider.dart'; // State management Provider
+import 'package:url_launcher/url_launcher.dart'; // Membuka URL artikel berita di browser eksternal
 
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
+import '../models/search_result.dart'; // Model representasi data artikel Google CSE
+import '../models/gemini_analysis.dart'; // Model data analisis Gemini AI
+import '../models/saved_analysis.dart'; // Model data record SQLite
+import '../providers/saved_analysis_provider.dart'; // Provider pengelola SQLite riwayat
+import '../providers/gemini_api_provider.dart'; // Provider API Key Gemini
+import '../providers/search_api_provider.dart'; // Provider API Key Google CSE
+import '../providers/custom_prompt_provider.dart'; // Provider editor custom prompt AI
+import '../services/search_api.dart'; // Service perancang Query RAG
+import '../theme/app_theme.dart'; // Pewarnaan gelap aplikasi
+import '../widgets/error_banner.dart'; // Banner visual error
+import '../utils/tutorial_utils.dart'; // Bottom sheet tutorial API key
+import '../widgets/gemini_chatbot.dart'; // Widget chatbot peraga respon Gemini
+import '../widgets/search_result_card.dart'; // Widget kartu artikel referensi
 
-import '../models/search_result.dart';
-import '../models/gemini_analysis.dart';
-import '../models/saved_analysis.dart';
-import '../providers/saved_analysis_provider.dart';
-import '../providers/gemini_api_provider.dart';
-import '../providers/search_api_provider.dart';
-import '../providers/custom_prompt_provider.dart';
-import '../services/search_api.dart';
-import '../theme/app_theme.dart';
-import '../widgets/error_banner.dart';
-import '../utils/tutorial_utils.dart';
-import '../widgets/gemini_chatbot.dart';
-import '../widgets/search_result_card.dart';
-
-// === WIDGET UTAMA: SEARCH PAGE ===
-// StatefulWidget yang menangani seluruh logika pencarian dan state management
-// Mengintegrasikan berbagai komponen UI untuk memberikan pengalaman pencarian yang optimal
+/// Widget utama halaman Pencarian Fakta (Tab 1 pada navigasi utama).
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key, required this.api, this.onSettingsTap});
 
+  /// Service API pencarian fakta
   final SearchApi api;
+
+  /// Callback untuk berpindah ke Tab Pengaturan saat API key mati
   final VoidCallback? onSettingsTap;
 
   @override
   State<SearchPage> createState() => _SearchPageState();
 }
 
+// ==============================================================================
+// SUB-WIDGET: PEMBERITAHUAN MODE FALLBACK (_FallbackNotice)
+// ==============================================================================
+/// Banner pemberitahuan kecil di bagian atas yang memberi tahu pengguna
+/// bahwa Google Custom Search tidak tersedia dan sistem menggunakan data sisa.
 class _FallbackNotice extends StatelessWidget {
   const _FallbackNotice();
 
@@ -75,6 +96,11 @@ class _FallbackNotice extends StatelessWidget {
   }
 }
 
+// ==============================================================================
+// SUB-WIDGET: TAMPILAN FULL SCREEN MODE FALLBACK (_FallbackState)
+// ==============================================================================
+/// Halaman kosong representatif yang menjelaskan bahwa pencarian Google gagal total,
+/// namun Gemini AI berhasil memberikan analisis perkiraan sementara.
 class _FallbackState extends StatelessWidget {
   const _FallbackState();
 
@@ -94,7 +120,7 @@ class _FallbackState extends StatelessWidget {
               Container(
                 width: 90,
                 height: 90,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: AppTheme.primaryGradient,
                 ),
@@ -137,174 +163,143 @@ class _FallbackState extends StatelessWidget {
   }
 }
 
-// === STATE MANAGEMENT CLASS ===
-// Mengelola semua state dan logic bisnis untuk halaman pencarian
-// Mengimplementasikan pattern BLoC sederhana untuk state management
+// ==============================================================================
+// STATE CLASS: PUSAT LOGIKA HALAMAN PENCARIAN (_SearchPageState)
+// ==============================================================================
 class _SearchPageState extends State<SearchPage> {
   // === SCROLL CONTROLLER ===
-  // Controller untuk menangani scroll behavior dan visibility suggestion panel
   final ScrollController _scrollController = ScrollController();
 
   // === PAGE CONTROLLER ===
-  // Controller untuk horizontal slide antara Gemini dan Search Results
+  /// Controller untuk berpindah tab horizontal secara smooth antara Analisis AI dan Hasil Berita
   final PageController _pageController = PageController();
-  int _currentPageIndex = 0;
+  int _currentPageIndex = 0; // Index halaman yang aktif saat ini (0 = AI, 1 = Artikel CSE)
 
   // === TEXT INPUT CONTROLLERS ===
-  // Controller untuk menangani input text pencarian dari user
+  /// Controller TextField input klaim
   final TextEditingController _controller = TextEditingController();
-  // Focus node untuk mengelola keyboard dan focus events
+  /// FocusNode untuk menyembunyikan/menampilkan keyboard HP
   final FocusNode _queryFocus = FocusNode();
 
   // === RATE LIMITING SYSTEM ===
-  // Duration cooldown antara pencarian (5 detik untuk mencegah spam)
+  /// Durasi jeda keamanan pencarian demi menjaga API Key (5 detik)
   final Duration _cooldown = const Duration(seconds: 5);
 
   // === SEARCH RESULTS STATE ===
-  // List untuk menyimpan hasil pencarian dari API
+  /// Menyimpan artikel berita rujukan hasil Google CSE
   List<SearchResult> _results = const [];
-  // Boolean untuk menunjukkan status loading saat pencarian sedang berlangsung
+  /// Flag loader
   bool _isLoading = false;
-  // Gemini AI analysis result
+  /// Objek hasil akhir analisis Gemini AI
   GeminiAnalysis? _geminiAnalysis;
-  // String untuk menyimpan error message jika terjadi kesalahan
+  /// Penampung error jika gagal request API
   String? _error;
-  // Timestamp pencarian terakhir untuk rate limiting
+  /// Tanggal waktu pencarian terakhir kali berhasil dikirim
   DateTime? _lastSearchTime;
-  // Timer untuk menghitung mundur cooldown period
+  /// Timer berkala 1 detik untuk memperbarui status cooldown
   Timer? _cooldownTimer;
 
   @override
   void initState() {
     super.initState();
-    // Setup scroll listener untuk mengontrol suggestion panel visibility
     _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
-    // === CLEANUP ===
-    // Bersihkan semua controller dan listener untuk mencegah memory leak
+    // Bersihkan semua controller untuk menghindari memory leaks di HP
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _pageController.dispose();
     _controller.dispose();
     _queryFocus.dispose();
-
-    // Cancel timer jika masih aktif
-    _cooldownTimer?.cancel();
-
-    // Call parent dispose
+    _cooldownTimer?.cancel(); // Pastikan timer dimatikan saat halaman dihancurkan
     super.dispose();
   }
 
   void _onScroll() {
-    // Scroll listener - currently not used since suggestion panel is removed
-    // Kept for potential future features
+    // Callback scroll listener (disediakan jika ada penambahan panel suggestion di kemudian hari)
   }
 
+  // ==========================================================================
+  // METODE: MEMULAI COUNTDOWN TIMER COOLDOWN PENCARIAN
+  // ==========================================================================
   void _startCooldownTimer() {
-    // === TIMER COOLDOWN ===
-    // Method ini memulai timer periodik untuk menghitung mundur cooldown
-    // Timer berjalan setiap 1 detik dan akan otomatis berhenti ketika cooldown habis
+    _cooldownTimer?.cancel(); // Matikan timer aktif sebelumnya terlebih dahulu
 
-    // Cancel timer sebelumnya jika masih aktif untuk menghindari memory leak
-    _cooldownTimer?.cancel();
-
-    // Membuat timer periodik yang berjalan setiap 1 detik
+    // Buat timer periodik yang berjalan setiap 1 detik
     _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      // Ambil waktu pencarian terakhir dari state
       final last = _lastSearchTime;
-
-      // Jika tidak ada waktu pencarian terakhir, hentikan timer
       if (last == null) {
         timer.cancel();
         return;
       }
 
-      // Hitung selisih waktu antara sekarang dengan waktu pencarian terakhir
       final diff = DateTime.now().difference(last);
-
-      // Hitung sisa waktu cooldown yang tersisa
       final remaining = _cooldown - diff;
 
-      // Jika cooldown sudah habis (remaining negatif atau 0)
+      // Jika sisa waktu jeda telah habis, matikan timer harian
       if (remaining.isNegative) {
-        // Update UI untuk menunjukkan cooldown sudah selesai
-        setState(() {});
-        // Hentikan timer karena sudah tidak diperlukan lagi
+        setState(() {}); // Segarkan UI
         timer.cancel();
       } else {
-        // Update UI untuk menunjukkan sisa waktu cooldown
-        // Progress bar akan ter-update berdasarkan sisa waktu ini
-        setState(() {});
+        setState(() {}); // Segarkan progress bar UI
       }
     });
   }
 
+  // ==========================================================================
+  // METODE: MEMERIKSA STATUS COOLDOWN
+  // ==========================================================================
+  /// Mengembalikan sisa durasi jeda yang harus dilewati pengguna.
+  /// Mengembalikan `null` jika tidak ada jeda cooldown yang aktif.
   Duration? _checkCooldown() {
-    // === CEK STATUS COOLDOWN ===
-    // Method ini menghitung dan mengembalikan sisa waktu cooldown
-    // Return null jika cooldown sudah habis, atau Duration jika masih aktif
-
-    // Jika belum pernah melakukan pencarian, return null (tidak ada cooldown)
     if (_lastSearchTime == null) return null;
 
-    // Hitung selisih waktu antara sekarang dengan waktu pencarian terakhir
     final diff = DateTime.now().difference(_lastSearchTime!);
-
-    // Hitung sisa waktu cooldown yang tersisa
     final remaining = _cooldown - diff;
 
-    // Jika sisa waktu negatif atau 0, berarti cooldown sudah habis
     if (remaining.isNegative) {
-      return null; // Tidak ada cooldown aktif
+      return null;
     }
-
-    // Return sisa waktu cooldown yang tersisa
     return remaining;
   }
 
+  // ==========================================================================
+  // METODE: PROSES PENCARIAN UTAMA (RAG ORCHESTRATION & FALLBACK SYSTEM)
+  // ==========================================================================
   void _performSearchWithLimit() async {
-    // === METODE PENCARIAN UTAMA ===
-    // Method ini menangani proses pencarian dengan semua validasi dan error handling
-    // Mengimplementasikan rate limiting dan validasi input
-
-    // Safety check untuk memastikan widget masih mounted sebelum async operation
     if (!mounted) return;
 
-    // Ambil dan bersihkan query dari text controller
+    // Hilangkan spasi berlebih pada awal/akhir query klaim
     final query = _controller.text.trim();
 
-    // === VALIDASI INPUT ===
-    // Validasi 1: Pastikan query tidak kosong
+    // === VALIDASI UTAMA ===
     if (query.isEmpty) {
       _showSnackBar('Masukkan kata kunci pencarian.');
       return;
     }
 
-    // Validasi 2: Pastikan query minimal 3 karakter untuk hasil yang relevan
     if (query.length < 3) {
       _showSnackBar('Kata kunci minimal 3 karakter.');
       return;
     }
 
-    // === CEK RATE LIMITING ===
-    // Validasi 3: Cek apakah masih dalam periode cooldown
+    // === CEK JEDA RATE LIMITING ===
     final cooldown = _checkCooldown();
     if (cooldown != null) {
       _showSnackBar('Tunggu ${cooldown.inSeconds} detik sebelum mencari lagi.');
       return;
     }
 
-    // === AMBIL API KEYS DARI PROVIDERS ===
+    // === BACA KONFIGURASI API KEY ===
     final geminiProvider = context.read<GeminiApiProvider>();
     final cseProvider = context.read<SearchApiProvider>();
     final geminiApiKey = geminiProvider.apiKey;
     final cseApiKey = cseProvider.apiKey;
     final cseCx = cseProvider.cx;
 
-    // Cek apakah API key sudah expired sebelum mencari
+    // Cek dini kegagalan key
     if (geminiProvider.isKeyExpired) {
       _showApiKeyExpiredDialog();
       return;
@@ -314,36 +309,32 @@ class _SearchPageState extends State<SearchPage> {
       return;
     }
 
-    // === MULAI PROSES PENCARIAN ===
-    // Update state untuk menunjukkan loading state dan reset error
+    // === AKTIFKAN LOADER DAN RESET ERROR ===
     setState(() {
-      _isLoading = true; // Aktifkan loading indicator
-      _error = null; // Reset error message
-      _lastSearchTime = DateTime.now(); // Record waktu pencarian
+      _isLoading = true;
+      _error = null;
+      _lastSearchTime = DateTime.now(); // Perbarui log waktu kirim pencarian
     });
 
-    // Mulai timer cooldown untuk rate limiting
-    _startCooldownTimer();
+    _startCooldownTimer(); // Mulai hitung mundur jeda 5 detik
 
-    // === EKSEKUSI PENCARIAN ===
     try {
-      // Panggil API dengan semua API keys dan callbacks
+      // Panggil orchestrator API RAG (search_api.dart)
       final response = await widget.api.search(
         query,
         limit: 20,
         geminiApiKey: geminiApiKey,
         cseApiKey: cseApiKey,
         cseCx: cseCx,
-        customInstructions: context
-            .read<CustomPromptProvider>()
-            .customInstructions,
+        customInstructions: context.read<CustomPromptProvider>().customInstructions,
+        // Callback mencatat statistik pemakaian sukses
         onGeminiUsage: () {
           geminiProvider.recordUsage();
         },
+        // Callback mendeteksi quota habis / key invalid
         onGeminiError: (statusCode, errorMessage) {
           geminiProvider.recordError(statusCode, errorMessage);
-          if (mounted &&
-              (statusCode == 400 || statusCode == 403 || statusCode == 429)) {
+          if (mounted && (statusCode == 400 || statusCode == 403 || statusCode == 429)) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) _showApiKeyExpiredDialog();
             });
@@ -354,8 +345,7 @@ class _SearchPageState extends State<SearchPage> {
         },
         onCseError: (statusCode, errorMessage) {
           cseProvider.recordError(statusCode, errorMessage);
-          if (mounted &&
-              (statusCode == 400 || statusCode == 403 || statusCode == 429)) {
+          if (mounted && (statusCode == 400 || statusCode == 403 || statusCode == 429)) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) _showCseApiKeyExpiredDialog();
             });
@@ -363,34 +353,31 @@ class _SearchPageState extends State<SearchPage> {
         },
       );
 
-      // Safety check lagi setelah await
       if (mounted) {
-        // Update state dengan hasil pencarian dan Gemini analysis
         setState(() {
-          _results =
-              response['results'] as List<SearchResult>; // Set hasil pencarian
-          _geminiAnalysis =
-              response['gemini_analysis']
-                  as GeminiAnalysis?; // Set Gemini analysis
-          _isLoading = false; // Matikan loading indicator
-          _currentPageIndex = 0; // Auto-navigate to Gemini analysis tab
+          // Ambil daftar artikel pendukung dari Google CSE
+          _results = response['results'] as List<SearchResult>;
+          // Ambil analisis verdict dan penalaran dari Gemini AI
+          _geminiAnalysis = response['gemini_analysis'] as GeminiAnalysis?;
+          _isLoading = false;
+          _currentPageIndex = 0; // Auto-fokus ke tab 0 (Analisis AI)
         });
       }
     } catch (e) {
-      // === ERROR HANDLING ===
-      // Tangani error yang terjadi selama proses pencarian
+      // === MANAGEMENT ERROR FALLBACK ===
       if (mounted) {
         setState(() {
-          _error = e.toString(); // Simpan error message
-          _isLoading = false; // Matikan loading indicator
-          _geminiAnalysis = null; // Reset Gemini analysis
+          _error = e.toString();
+          _isLoading = false;
+          _geminiAnalysis = null;
         });
       }
     }
   }
 
-  /// === POP-UP DIALOG CSE API KEY EXPIRED ===
-  /// Menampilkan dialog notifikasi bahwa CSE API key bermasalah.
+  // ==========================================================================
+  // METODE: DIALOG GOOGLE CSE KEY EXPIRED
+  // ==========================================================================
   void _showCseApiKeyExpiredDialog() {
     showDialog(
       context: context,
@@ -480,7 +467,7 @@ class _SearchPageState extends State<SearchPage> {
             ),
             onPressed: () {
               Navigator.pop(dialogContext);
-              widget.onSettingsTap?.call();
+              widget.onSettingsTap?.call(); // Alihkan tab ke menu pengaturan profil
             },
             icon: const Icon(Icons.settings, size: 18),
             label: const Text('Buka Pengaturan'),
@@ -490,9 +477,9 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
-  /// === POP-UP DIALOG API KEY EXPIRED ===
-  /// Menampilkan dialog notifikasi bahwa API key bermasalah
-  /// dan memberikan opsi untuk mengganti key dari Settings.
+  // ==========================================================================
+  // METODE: DIALOG GEMINI AI API KEY EXPIRED
+  // ==========================================================================
   void _showApiKeyExpiredDialog() {
     showDialog(
       context: context,
@@ -611,8 +598,7 @@ class _SearchPageState extends State<SearchPage> {
             ),
             onPressed: () {
               Navigator.pop(dialogContext);
-              // Navigate ke Settings tab
-              widget.onSettingsTap?.call();
+              widget.onSettingsTap?.call(); // Alihkan tab ke menu pengaturan profil
             },
             icon: const Icon(Icons.settings, size: 18),
             label: const Text('Buka Pengaturan'),
@@ -622,76 +608,49 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
+  // ==========================================================================
+  // METODE: MEMBUKA TAUTAN DI BROWSER HP
+  // ==========================================================================
   Future<void> _openResult(String url) async {
-    // === BUKA URL HASIL PENCARIAN ===
-    // Method ini menangani pembukaan URL hasil pencarian di browser eksternal
-
-    // Parse URL untuk memastikan formatnya valid
     final uri = Uri.tryParse(url);
-
-    // Validasi URL yang diterima
     if (uri == null) {
       _showSnackBar('URL tidak valid.');
       return;
     }
 
-    // Coba buka URL menggunakan launcher dengan mode external application
     final success = await launchUrl(uri, mode: LaunchMode.externalApplication);
-
-    // Berikan feedback jika gagal membuka URL
     if (!success) {
       _showSnackBar('Tidak dapat membuka tautan.');
     }
   }
 
   void _showSnackBar(String message) {
-    // === TAMPILKAN NOTIFIKASI ===
-    // Method utility untuk menampilkan snackbar dengan pesan tertentu
-
-    // Safety check untuk memastikan widget masih mounted
     if (!mounted) return;
-
-    // Tampilkan snackbar menggunakan ScaffoldMessenger
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  // ==========================================================================
+  // METODE: MENYALIN TAUTAN (COPY LINK)
+  // ==========================================================================
   Future<void> _copyLink(String url) async {
-    // === COPY URL KE CLIPBOARD ===
-    // Method ini menyalin URL hasil pencarian ke clipboard device
-
-    // Gunakan Clipboard API untuk menyalin text ke clipboard
     await Clipboard.setData(ClipboardData(text: url));
-
-    // Berikan feedback bahwa URL berhasil disalin
     _showSnackBar('Tautan sumber disalin ke clipboard.');
   }
 
+  // ==========================================================================
+  // VIEW UTAMA: BUILD METHOD
+  // ==========================================================================
   @override
   Widget build(BuildContext context) {
-    // === MAIN UI BUILDER ===
-    // Method utama yang membangun seluruh interface pengguna
-    // Menggunakan conditional rendering berdasarkan state aplikasi
-
-    // Ambil theme context untuk styling yang konsisten
     final theme = Theme.of(context);
-    // Cek status cooldown untuk menampilkan progress bar jika aktif
-    final onCooldown = _checkCooldown();
+    final onCooldown = _checkCooldown(); // Periksa jeda 5 detik saat render
 
     return Scaffold(
-      // === SCAFFOLD SETUP ===
-      // Background transparan untuk menggunakan gradient background
-      backgroundColor: Colors.transparent,
-      // Extend body untuk menggunakan full screen area
-      extendBody: false,
-
-      // === SPOTIFY-STYLE APP BAR ===
-      // Clean header seperti Spotify with settings button
+      backgroundColor: Colors.transparent, // Transparan agar gradient background shell terlihat
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        automaticallyImplyLeading: false, // Ensure no back button is shown
+        automaticallyImplyLeading: false, // Hapus tombol back default
         title: Text(
           'Klarip',
           style: theme.textTheme.headlineSmall?.copyWith(
@@ -701,39 +660,20 @@ class _SearchPageState extends State<SearchPage> {
         ),
         centerTitle: false,
       ),
-
-      // === MAIN BODY ===
       body: Container(
-        // === BACKGROUND GRADIENT ===
-        // Menggunakan gradient background sesuai tema aplikasi
         decoration: const BoxDecoration(gradient: AppTheme.backgroundGradient),
-
         child: Align(
-          // === CENTERED LAYOUT ===
-          // Menggunakan alignment top center untuk layout yang konsisten
           alignment: Alignment.topCenter,
-
           child: ConstrainedBox(
-            // === RESPONSIVE CONSTRAINT ===
-            // Membatasi lebar maksimal untuk layout desktop yang optimal
-            constraints: const BoxConstraints(maxWidth: 920),
-
+            constraints: const BoxConstraints(maxWidth: 920), // Responsive lebar desktop
             child: Padding(
-              // === HORIZONTAL PADDING ===
-              // Memberikan padding horizontal untuk spacing yang konsisten
               padding: const EdgeInsets.symmetric(horizontal: 16),
-
               child: Column(
-                // === MAIN COLUMN LAYOUT ===
-                // Layout utama menggunakan column dengan stretch alignment
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-
                 children: [
-                  // === TOP SPACING ===
                   const SizedBox(height: 24),
 
-                  // === SEARCH CARD ===
-                  // Komponen utama untuk input pencarian dengan semua fitur
+                  // === FORM PENCARIAN (_SearchCard) ===
                   _SearchCard(
                     controller: _controller,
                     focusNode: _queryFocus,
@@ -742,61 +682,46 @@ class _SearchPageState extends State<SearchPage> {
                     onSearch: () => _performSearchWithLimit(),
                   ),
 
-                  // === COOLDOWN PROGRESS INDICATOR ===
-                  // Menampilkan progress bar dan countdown jika dalam periode cooldown
+                  // === PROGRESS BAR COUNTDOWN COOLDOWN ===
                   if (onCooldown != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Text countdown timer
                           Text(
                             'Tunggu ${onCooldown.inSeconds} detik sebelum mencari lagi.',
                             style: theme.textTheme.bodySmall,
                           ),
                           const SizedBox(height: 6),
-                          // Progress bar untuk visual feedback
                           ClipRRect(
                             borderRadius: BorderRadius.circular(8),
                             child: LinearProgressIndicator(
-                              // Calculate progress based on elapsed vs total cooldown time
-                              value:
-                                  ((_cooldown.inMilliseconds -
-                                              onCooldown.inMilliseconds) /
-                                          _cooldown.inMilliseconds)
-                                      .clamp(0.0, 1.0),
+                              value: ((_cooldown.inMilliseconds - onCooldown.inMilliseconds) /
+                                      _cooldown.inMilliseconds)
+                                  .clamp(0.0, 1.0),
                             ),
                           ),
                         ],
                       ),
                     ),
 
-                  // === SPACING ===
                   const SizedBox(height: 20),
 
-                  // === SUGGESTION PANEL REMOVED ===
-                  // Suggestion panel has been removed per user request
-
-                  // === ERROR BANNER ===
-                  // Tampilkan error message jika terjadi kesalahan
+                  // === SPANDUK KATA KUNCI ERROR (JIKA ADA KESALAHAN PADA API) ===
                   if (_error != null) ...[
                     const SizedBox(height: 12),
                     ErrorBanner(message: _error!),
                   ],
 
-                  // === HORIZONTAL SLIDE CONTENT ===
-                  // PageView untuk slide antara Gemini Analysis dan Search Results
-                  if (_results.isNotEmpty ||
-                      _isLoading ||
-                      _geminiAnalysis != null) ...[
+                  // === AREA SLIDE STRUKTUR (TAB SWITCH) ===
+                  if (_results.isNotEmpty || _isLoading || _geminiAnalysis != null) ...[
                     const SizedBox(height: 12),
-
-                    // Tab Indicator
                     Container(
                       margin: const EdgeInsets.symmetric(horizontal: 16),
                       child: Row(
                         children: [
+                          // Tab 1: Analisis AI
                           Expanded(
                             child: _TabButton(
                               icon: Icons.auto_awesome,
@@ -812,6 +737,7 @@ class _SearchPageState extends State<SearchPage> {
                             ),
                           ),
                           const SizedBox(width: 12),
+                          // Tab 2: Hasil Pencarian Google CSE
                           Expanded(
                             child: _TabButton(
                               icon: Icons.search,
@@ -829,16 +755,12 @@ class _SearchPageState extends State<SearchPage> {
                         ],
                       ),
                     ),
-
                     const SizedBox(height: 12),
                   ],
 
-                  // === MAIN CONTENT AREA ===
+                  // === AREA VIEW UTAMA: PAGEVIEW (TAB CONTENT CONTAINER) ===
                   Expanded(
-                    child:
-                        (_results.isNotEmpty ||
-                            _isLoading ||
-                            _geminiAnalysis != null)
+                    child: (_results.isNotEmpty || _isLoading || _geminiAnalysis != null)
                         ? PageView(
                             controller: _pageController,
                             onPageChanged: (index) {
@@ -847,25 +769,19 @@ class _SearchPageState extends State<SearchPage> {
                               });
                             },
                             children: [
+                              // Halaman 1: AI Chatbot Verdict View
                               SingleChildScrollView(
-                                padding: const EdgeInsets.fromLTRB(
-                                  16,
-                                  0,
-                                  16,
-                                  80,
-                                ),
+                                padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
                                 child: Column(
                                   children: [
-                                    if (_results.isEmpty &&
-                                        !_isLoading &&
-                                        _geminiAnalysis != null)
+                                    if (_results.isEmpty && !_isLoading && _geminiAnalysis != null)
                                       const Padding(
                                         padding: EdgeInsets.only(bottom: 12),
                                         child: _FallbackNotice(),
                                       ),
                                     GeminiChatbot(
                                       analysis: _geminiAnalysis,
-                                      results: _results, // Pass results here
+                                      results: _results,
                                       isLoading: _isLoading,
                                       onRetry: () {
                                         _performSearchWithLimit();
@@ -875,30 +791,28 @@ class _SearchPageState extends State<SearchPage> {
                                 ),
                               ),
 
-                              // Page 2: Search Results
+                              // Halaman 2: Daftar Artikel Sumber Berita Google CSE
                               AnimatedSwitcher(
                                 duration: const Duration(milliseconds: 250),
                                 child: _isLoading
                                     ? const _LoadingState()
                                     : _results.isEmpty
-                                    ? (_geminiAnalysis != null
-                                          ? const _FallbackState()
-                                          : const _EmptyState())
-                                    : _ResultsList(
-                                        results: _results,
-                                        onOpen: _openResult,
-                                        onCopy: _copyLink,
-                                        query: _controller.text,
-                                        onSave: (result) =>
-                                            _showSaveDialog(context, result),
-                                      ),
+                                        ? (_geminiAnalysis != null
+                                            ? const _FallbackState()
+                                            : const _EmptyState())
+                                        : _ResultsList(
+                                            results: _results,
+                                            onOpen: _openResult,
+                                            onCopy: _copyLink,
+                                            query: _controller.text,
+                                            onSave: (result) => _showSaveDialog(context, result),
+                                          ),
                               ),
                             ],
                           )
-                        : const _EmptyState(),
+                        : const _EmptyState(), // Empty State pemandu awal
                   ),
 
-                  // === BOTTOM SPACING ===
                   const SizedBox(height: 16),
                 ],
               ),
@@ -909,6 +823,9 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
+  // ==========================================================================
+  // METODE: DIALOG SAVE MANUAL ITEM ARTIKEL CSE KE SQLite LOKAL
+  // ==========================================================================
   void _showSaveDialog(BuildContext context, SearchResult result) {
     final noteController = TextEditingController();
     showDialog(
@@ -961,6 +878,9 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
+  // ==========================================================================
+  // METODE: SIMPAN ARTIKEL MANUAL SQLite (CRUD CREATE)
+  // ==========================================================================
   void _saveResult(BuildContext context, SearchResult result, String note) {
     try {
       final savedAnalysis = SavedAnalysis(
@@ -983,7 +903,7 @@ class _SearchPageState extends State<SearchPage> {
         );
       }
     } catch (e) {
-      debugPrint('Save failed: $e');
+      debugPrint('Gagal menyimpan hasil: $e');
     }
   }
 }
@@ -995,6 +915,10 @@ class _SearchPageState extends State<SearchPage> {
 // === SEARCH CARD WIDGET ===
 // Widget stateful yang menangani input pencarian dengan search button
 // Komponen utama untuk user interaction dengan fitur loading state dan cooldown indicator
+// ==============================================================================
+// SUB-WIDGET: KARTU INPUT PENCARIAN FAKTA (_SearchCard)
+// ==============================================================================
+/// Komponen input dinamis yang mewadahi input TextField dan tombol Cari.
 class _SearchCard extends StatefulWidget {
   const _SearchCard({
     required this.controller,
@@ -1014,8 +938,6 @@ class _SearchCard extends StatefulWidget {
   State<_SearchCard> createState() => _SearchCardState();
 }
 
-// === SEARCH CARD STATE ===
-// State management untuk search card dengan focus dan interaction handling
 class _SearchCardState extends State<_SearchCard> {
   @override
   Widget build(BuildContext context) {
@@ -1036,6 +958,7 @@ class _SearchCardState extends State<_SearchCard> {
           children: [
             Row(
               children: [
+                // Input TextField Klaim
                 Expanded(
                   child: TextField(
                     controller: widget.controller,
@@ -1044,8 +967,8 @@ class _SearchCardState extends State<_SearchCard> {
                       color: Colors.white,
                       fontWeight: FontWeight.w500,
                     ),
-                    onSubmitted: (_) => _performSearch(),
-                    textInputAction: TextInputAction.search,
+                    onSubmitted: (_) => _performSearch(), // Trigger cari saat menekan tombol "Enter" di keyboard HP
+                    textInputAction: TextInputAction.search, // Tampilkan tombol ikon kaca pembesar di keyboard HP
                     decoration: InputDecoration(
                       hintText: "Cari fakta dari klaim di media sosial...",
                       hintStyle: theme.textTheme.bodyMedium?.copyWith(
@@ -1083,6 +1006,7 @@ class _SearchCardState extends State<_SearchCard> {
                   ),
                 ),
                 const SizedBox(width: 12),
+                // Tombol Eksekusi Cari dengan spinner loader internal
                 Container(
                   decoration: BoxDecoration(
                     gradient: AppTheme.primaryGradient,
@@ -1096,9 +1020,7 @@ class _SearchCardState extends State<_SearchCard> {
                             height: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.white,
-                              ),
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
                           )
                         : const Icon(
@@ -1125,9 +1047,10 @@ class _SearchCardState extends State<_SearchCard> {
   }
 }
 
-// === LOADING STATE WIDGET ===
-// Widget untuk menampilkan loading indicator saat proses pencarian sedang berlangsung
-// Memberikan visual feedback yang menarik dengan spinner dan text informatif
+// ==============================================================================
+// SUB-WIDGET: TAMPILAN LOADER ANTAR-MUKA PENCARIAN (_LoadingState)
+// ==============================================================================
+/// Spinner loader berukuran besar dengan teks informatif saat memverifikasi klaim.
 class _LoadingState extends StatelessWidget {
   const _LoadingState();
 
@@ -1141,7 +1064,7 @@ class _LoadingState extends StatelessWidget {
           Container(
             width: 48,
             height: 48,
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               gradient: AppTheme.primaryGradient,
               shape: BoxShape.circle,
             ),
@@ -1164,9 +1087,11 @@ class _LoadingState extends StatelessWidget {
   }
 }
 
-// === EMPTY STATE WIDGET ===
-// Widget kompleks yang ditampilkan ketika belum ada hasil pencarian
-// Berisi animasi, statistik, dan tips verifikasi untuk user experience yang engaging
+// ==============================================================================
+// SUB-WIDGET: TAMPILAN AWAL SEBELUM PENCARIAN (_EmptyState)
+// ==============================================================================
+/// Halaman panduan utama yang menampilkan tips verifikasi hoax, judul bersinar,
+/// dan logo kacamata pembesar Klarip dengan animasi pulse scaling.
 class _EmptyState extends StatelessWidget {
   const _EmptyState();
 
@@ -1183,8 +1108,7 @@ class _EmptyState extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // === ANIMATED ICON ===
-              // Icon dengan animasi pulse menggunakan TweenAnimationBuilder
+              // === LOGO KLARIP ANIMASI PULSE (SKALA DENYUT) ===
               TweenAnimationBuilder<double>(
                 tween: Tween(begin: 0.85, end: 1),
                 duration: const Duration(milliseconds: 1200),
@@ -1200,7 +1124,7 @@ class _EmptyState extends StatelessWidget {
                   errorBuilder: (context, error, stackTrace) => Container(
                     width: 96,
                     height: 96,
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       gradient: AppTheme.secondaryGradient,
                       shape: BoxShape.circle,
                     ),
@@ -1212,14 +1136,12 @@ class _EmptyState extends StatelessWidget {
                   ),
                 ),
               ),
-
               const SizedBox(height: 32),
 
-              // === GRADIENT TEXT TITLE ===
-              // Judul dengan efek gradient menggunakan ShaderMask
+              // === JUDUL BERSINAR (SHADER MASK) ===
               ShaderMask(
-                shaderCallback: (bounds) => LinearGradient(
-                  colors: [Colors.white, Colors.white.withValues(alpha: 0.8)],
+                shaderCallback: (bounds) => const LinearGradient(
+                  colors: [Colors.white, Colors.white70],
                 ).createShader(bounds),
                 child: Text(
                   'Verifikasi klaim di media sosial',
@@ -1231,11 +1153,9 @@ class _EmptyState extends StatelessWidget {
                   textAlign: TextAlign.center,
                 ),
               ),
-
               const SizedBox(height: 16),
 
-              // === DESCRIPTIVE CONTAINER ===
-              // Container dengan informasi cara penggunaan aplikasi
+              // Penjelasan singkat aplikasi
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -1257,61 +1177,48 @@ class _EmptyState extends StatelessWidget {
                   textAlign: TextAlign.center,
                 ),
               ),
-
               const SizedBox(height: 32),
 
-              // === TIPS SECTION ===
-              // Container dengan tips verifikasi untuk user
+              // === BAGIAN INTERAKTIF: TIPS MENDETEKSI HOAX ===
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      AppTheme.primaryGradient.colors.first.withValues(
-                        alpha: 0.1,
-                      ),
-                      AppTheme.accentGradient.colors.first.withValues(
-                        alpha: 0.05,
-                      ),
+                      AppTheme.primaryGradient.colors.first.withValues(alpha: 0.1),
+                      AppTheme.accentGradient.colors.first.withValues(alpha: 0.05),
                     ],
                   ),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: AppTheme.primaryGradient.colors.first.withValues(
-                      alpha: 0.2,
-                    ),
+                    color: AppTheme.primaryGradient.colors.first.withValues(alpha: 0.2),
                   ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    const Row(
                       children: [
                         Icon(
                           Icons.lightbulb,
                           color: AppTheme.tertiaryAccentColor,
                           size: 20,
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         Text(
                           'Tips Verifikasi',
-                          style: theme.textTheme.titleSmall?.copyWith(
+                          style: TextStyle(
                             color: Colors.white,
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 12),
-                    _TipItem(text: 'Periksa tanggal berita dan klaim yang ada'),
-                    _TipItem(
-                      text:
-                          'Bandingkan dengan sumber resmi pemerintah atau lembaga terpercaya',
-                    ),
-                    _TipItem(
-                      text:
-                          'Waspadai judul clickbait yang provokatif di internet',
-                    ),
+                    const _TipItem(text: 'Periksa tanggal berita dan klaim yang ada'),
+                    const _TipItem(text: 'Bandingkan dengan sumber resmi pemerintah atau lembaga terpercaya'),
+                    const _TipItem(text: 'Waspadai judul clickbait yang provokatif di internet'),
                   ],
                 ),
               ),
@@ -1323,9 +1230,9 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-// === TIP ITEM WIDGET ===
-// Widget untuk menampilkan individual tip dengan bullet point dan styling
-// Menggunakan Row layout dengan bullet point dan expanded text
+// ==============================================================================
+// SUB-WIDGET: ITEM BARIS TIPS (_TipItem)
+// ==============================================================================
 class _TipItem extends StatelessWidget {
   const _TipItem({required this.text});
 
@@ -1344,7 +1251,7 @@ class _TipItem extends StatelessWidget {
             margin: const EdgeInsets.only(top: 2),
             width: 6,
             height: 6,
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               color: AppTheme.tertiaryAccentColor,
               shape: BoxShape.circle,
             ),
@@ -1365,9 +1272,9 @@ class _TipItem extends StatelessWidget {
   }
 }
 
-// === RESULTS LIST WIDGET ===
-// Widget untuk menampilkan daftar hasil pencarian dengan separator dan animations
-// Menggunakan ListView.separated untuk layout yang optimal
+// ==============================================================================
+// SUB-WIDGET: DAFTAR KARTU BERITA RUJUKAN (_ResultsList)
+// ==============================================================================
 class _ResultsList extends StatelessWidget {
   const _ResultsList({
     required this.results,
@@ -1389,15 +1296,16 @@ class _ResultsList extends StatelessWidget {
       key: ValueKey(results.length),
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
       itemCount: results.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 16),
+      separatorBuilder: (_, __) => const SizedBox(height: 16), // Spasi vertikal antar kartu berita
       itemBuilder: (context, index) {
         final result = results[index];
+        // Bungkus kartu berita dengan animasi masuk bertahap (staggered)
         return _AnimatedResultCard(
           result: result,
           onOpen: onOpen,
           onCopy: onCopy,
           onSave: onSave,
-          index: index,
+          index: index, // Mengirimkan index untuk hitung durasi jeda delay animasi
           query: query,
         );
       },
@@ -1405,9 +1313,11 @@ class _ResultsList extends StatelessWidget {
   }
 }
 
-// === ANIMATED RESULT CARD WIDGET ===
-// StatefulWidget wrapper yang memberikan animasi pada result card
-// Menggunakan staggered animation berdasarkan index untuk efek yang smooth
+// ==============================================================================
+// SUB-WIDGET: ANIMASI MASUK KARTU RUJUKAN (_AnimatedResultCard & State)
+// ==============================================================================
+/// Menangani efek gerakan meluncur dari kanan ke kiri (slide transition)
+/// dan efek memudar (fade transition) beruntun/staggered.
 class _AnimatedResultCard extends StatefulWidget {
   final SearchResult result;
   final ValueChanged<String> onOpen;
@@ -1429,8 +1339,6 @@ class _AnimatedResultCard extends StatefulWidget {
   State<_AnimatedResultCard> createState() => _AnimatedResultCardState();
 }
 
-// === ANIMATED RESULT CARD STATE ===
-// State management untuk animasi result card dengan staggered delay
 class _AnimatedResultCardState extends State<_AnimatedResultCard>
     with TickerProviderStateMixin {
   late AnimationController _controller;
@@ -1441,25 +1349,27 @@ class _AnimatedResultCardState extends State<_AnimatedResultCard>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 600), // Durasi total animasi meluncur
       vsync: this,
     );
 
+    // Animasi meluncur sejauh 50 piksel ke arah kiri
     _slideAnimation = Tween<double>(
       begin: 50.0,
       end: 0.0,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
 
+    // Animasi memudar dari transparan (0.0) ke penuh (1.0)
     _fadeAnimation = Tween<double>(
       begin: 0.0,
       end: 1.0,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
 
-    // === STAGGERED ANIMATION ===
-    // Setiap card muncul dengan delay berdasarkan index untuk efek waterfall
+    // === STAGGERED EFFECT (KARTU MUNCUL BERGILIRAN) ===
+    // Delay kemunculan kartu = indeks kartu x 150 milidetik
     Future.delayed(Duration(milliseconds: widget.index * 150), () {
       if (mounted) {
-        _controller.forward();
+        _controller.forward(); // Jalankan animasi
       }
     });
   }
@@ -1492,8 +1402,10 @@ class _AnimatedResultCardState extends State<_AnimatedResultCard>
   }
 }
 
-// === TAB BUTTON WIDGET ===
-// Custom tab button untuk switching antara Gemini Analysis dan Search Results
+// ==============================================================================
+// SUB-WIDGET: TOMBOL TAB PENGALIH VIEW (_TabButton)
+// ==============================================================================
+/// Tombol dinamis dengan dekorasi gradasi jika aktif untuk beralih menu.
 class _TabButton extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -1515,13 +1427,11 @@ class _TabButton extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         decoration: BoxDecoration(
-          gradient: isActive ? AppTheme.primaryGradient : null,
-          color: isActive ? null : AppTheme.surfaceElevated,
+          gradient: isActive ? AppTheme.primaryGradient : null, // Gradasi bersinar jika aktif
+          color: isActive ? null : AppTheme.surfaceElevated, // Abu gelap jika tidak aktif
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isActive
-                ? Colors.transparent
-                : Colors.white.withValues(alpha: 0.1),
+            color: isActive ? Colors.transparent : Colors.white.withValues(alpha: 0.1),
             width: 1,
           ),
         ),
@@ -1547,3 +1457,4 @@ class _TabButton extends StatelessWidget {
     );
   }
 }
+
